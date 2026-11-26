@@ -48,7 +48,8 @@ How devpal is built: the decisions so far.
 - A persona's `voice.json` picks its Kokoro voice. The plain persona speaks as `am_onyx`.
 - Each sentence is synthesized while the one before it plays.
 - The microphone and the voice share one audio engine with macOS voice processing on. With the microphone and the speaker on separate devices, it cancels only part of the echo.
-- So while it speaks, it acts only on stop words in what it hears. Half a second after it stops, everything heard while it spoke is dropped, and listening starts fresh.
+- So while it speaks, it acts only on stop and pause words in what it hears. 800 ms after it stops, everything heard while it spoke is dropped, and listening starts fresh.
+- Every drop starts a new generation, and every listening event carries the generation of its audio, so an event about dropped audio that arrives late is ignored.
 - A persona's `replies.json` holds fixed replies to known phrases, matched word for word before the model.
 - A voice can be trained from a sample, on the machine.
 
@@ -67,6 +68,7 @@ How devpal is built: the decisions so far.
 - Every other sentence the model sorts into question, order or chat, at temperature 0, with a JSON schema that allows only those three. It sorted 24 of 24 test sentences right.
 - A question the memory already answers, sharing two meaningful words with a fact, goes to the model. Other questions go to an agent.
 - An order is read back in the developer's own words, and waits for go.
+- With a project in focus, once its agent has answered, chat goes to the agent too, and a yes to a question the agent asked starts the work at once.
 - Chat goes to the model, which keeps its memory with two tools, remember and forget, for phrasings the code misses.
 
 ## Agents

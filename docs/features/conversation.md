@@ -13,7 +13,8 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 - It answers out loud once you have been silent for a moment.
 - It speaks each sentence as soon as it is ready.
-- While it speaks, it hears only stop words, such as stop, wait or hold on: one stops it at once, and it listens.
+- While it speaks, it hears only stop words, such as stop or enough: one stops it at once, and it listens.
+- When you say pause, wait or hold on, it holds its speech and stops answering, until you say continue or go on.
 - Its own voice coming back through the microphone never stops it, and it never answers it.
 
 ## Wake Words (Not Yet Implemented)
@@ -35,6 +36,8 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 - When you ask about a project, its agent looks it up in the project's files, docs and wiki as they are today, read-only.
 - Without a project in focus, it looks across all the projects on the machine.
 - While it looks something up, it says so, and then gives the agent's answer in a sentence or two.
+- Once the agent has answered, what you say next goes to the agent too, such as explain it, until you change the subject to chat or focus.
+- When the agent asks whether to do something and you say yes, that is your go, and the work starts.
 - What its memory already answers, it answers itself.
 - It never guesses about a project, and never only offers to look something up.
 - When looking something up fails, it says why.
