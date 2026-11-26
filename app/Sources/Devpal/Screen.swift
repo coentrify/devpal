@@ -25,10 +25,10 @@ final class Screen {
     private let still: MTLTexture
     private var scene: MTLTexture?
     private var subtitleTexture: MTLTexture?
-    private var subtitleKey: (text: String, width: Int, height: Int)?
+    private var subtitleKey: (line: Line, width: Int, height: Int)?
 
-    /// The line of dialogue on screen, or nothing.
-    var subtitle = ""
+    /// The line of dialogue on screen, or none.
+    var subtitle = Line.none
 
     init(layers: Layers, targetFormat: MTLPixelFormat) throws {
         guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
@@ -125,11 +125,12 @@ final class Screen {
     }
 
     private func subtitleTexture(width: Int, height: Int) -> MTLTexture? {
-        let text = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        if let key = subtitleKey, key.text == text, key.width == width, key.height == height { return subtitleTexture }
-        subtitleTexture = Subtitles.texture(text, screenWidth: width, screenHeight: height, device: device)
-        subtitleKey = (text, width, height)
+        var line = subtitle
+        line.text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.text.isEmpty else { return nil }
+        if let key = subtitleKey, key.line == line, key.width == width, key.height == height { return subtitleTexture }
+        subtitleTexture = Subtitles.texture(line, screenWidth: width, screenHeight: height, device: device)
+        subtitleKey = (line, width, height)
         return subtitleTexture
     }
 

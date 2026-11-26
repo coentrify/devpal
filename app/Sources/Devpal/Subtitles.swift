@@ -1,8 +1,22 @@
 import AppKit
 import Metal
 
+/// A line of dialogue and who says it.
+struct Line: Equatable {
+    enum Who { case you, persona, status }
+
+    var text: String
+    var who: Who
+
+    static let none = Line(text: "", who: .status)
+    static func you(_ text: String) -> Line { Line(text: text, who: .you) }
+    static func persona(_ text: String) -> Line { Line(text: text, who: .persona) }
+    static func status(_ text: String) -> Line { Line(text: text, who: .status) }
+}
+
 /// Renders a line of dialogue into a texture: light text on a dark band,
-/// wrapped to the width it is given.
+/// wrapped to the width it is given. What you say glows cyan, what the
+/// persona says glows magenta, and a status is dimmer.
 enum Subtitles {
     /// The subtitles take this share of the screen's width.
     static let width: Float = 0.78
@@ -11,18 +25,28 @@ enum Subtitles {
     /// The text height as a share of the screen's height.
     static let fontShare: CGFloat = 0.054
 
-    static func texture(_ text: String, screenWidth: Int, screenHeight: Int, device: MTLDevice) -> MTLTexture? {
+    static func texture(_ line: Line, screenWidth: Int, screenHeight: Int, device: MTLDevice) -> MTLTexture? {
+        let text = line.text
         let width = max(Int(Float(screenWidth) * Self.width), 64)
         let fontSize = max(CGFloat(screenHeight) * fontShare, 12)
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor(red: 0.16, green: 0.96, blue: 1, alpha: 0.8)
+        switch line.who {
+        case .you: shadow.shadowColor = NSColor(red: 0.16, green: 0.96, blue: 1, alpha: 0.8)
+        case .persona: shadow.shadowColor = NSColor(red: 1, green: 0.24, blue: 0.94, alpha: 0.85)
+        case .status: shadow.shadowColor = NSColor(white: 1, alpha: 0.3)
+        }
+        let color: NSColor = switch line.who {
+        case .you: NSColor(red: 0.78, green: 1, blue: 1, alpha: 1)
+        case .persona: NSColor.white
+        case .status: NSColor(white: 1, alpha: 0.7)
+        }
         shadow.shadowBlurRadius = fontSize * 0.35
         let attributed = NSAttributedString(string: text, attributes: [
             .font: font,
-            .foregroundColor: NSColor.white,
+            .foregroundColor: color,
             .paragraphStyle: paragraph,
             .shadow: shadow,
         ])

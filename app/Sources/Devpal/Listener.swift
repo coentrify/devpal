@@ -28,6 +28,13 @@ final class Listener: @unchecked Sendable {
     private let feed: AsyncStream<[Float]>.Continuation
     private let onEvent: @Sendable (Event) -> Void
     private var worker: Task<Void, Never>?
+    private let gate = Gate()
+
+    /// While muted, the microphone is ignored, so the companion does not hear itself speak.
+    var muted: Bool {
+        get { gate.muted }
+        set { gate.muted = newValue }
+    }
 
     init(onEvent: @escaping @Sendable (Event) -> Void) {
         (chunks, feed) = AsyncStream.makeStream(of: [Float].self)
@@ -87,7 +94,9 @@ final class Listener: @unchecked Sendable {
             throw ListenerError.noAudioFormat
         }
         let feed = self.feed
+        let gate = self.gate
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
+            guard !gate.muted else { return }
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * Self.sampleRate / inputFormat.sampleRate) + 32
             guard let converted = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
             var consumed = false
@@ -195,6 +204,15 @@ private struct Pipeline {
             return rescored.text.trimmingCharacters(in: .whitespaces)
         }
         return result.text.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+private final class Gate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var muted: Bool {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
     }
 }
 

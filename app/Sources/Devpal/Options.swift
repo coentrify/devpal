@@ -15,10 +15,15 @@ struct Options {
     var listen = true
     var subtitle = ""
     var hear: URL?
+    var talk = true
+    var say: String?
+    var to: URL?
+    var ask: String?
 
     static let usage = """
     Usage: devpal [--background <name>] [--persona <name>] [--filter <name>]
-                  [--root <path>] [--full-screen] [--no-listen] [--subtitle <text>] [--hear <file.wav>]
+                  [--root <path>] [--full-screen] [--no-listen] [--no-talk] [--subtitle <text>]
+                  [--hear <file.wav>] [--say <text> [--to <file.wav>]] [--ask <text>]
                   [--snapshot <file.png> [--size <width>x<height>] [--time <seconds>]]
     """
 
@@ -40,6 +45,10 @@ struct Options {
             case "--no-listen": options.listen = false
             case "--subtitle": options.subtitle = try value(flag)
             case "--hear": options.hear = URL(fileURLWithPath: try value(flag))
+            case "--no-talk": options.talk = false
+            case "--say": options.say = try value(flag)
+            case "--to": options.to = URL(fileURLWithPath: try value(flag))
+            case "--ask": options.ask = try value(flag)
             case "--time":
                 guard let time = Float(try value(flag)) else { throw OptionsError.badValue(flag) }
                 options.time = time

@@ -8,6 +8,32 @@ do {
     exit(2)
 }
 
+if let text = options.say {
+    do {
+        let speech = Speech(voice: try Persona(folder: options.layers.persona).voice)
+        try await speech.load()
+        let samples = try await speech.synthesize(text)
+        if let file = options.to { try speech.write(samples, to: file) } else { try await speech.play(samples) }
+    } catch {
+        fail(error)
+    }
+    exit(0)
+}
+
+if let text = options.ask {
+    let brain = Brain(tone: (try? Persona(folder: options.layers.persona).tone) ?? "")
+    do {
+        try await brain.start()
+        for try await piece in brain.reply(to: text) { print(piece, terminator: "") }
+        print()
+        brain.stop()
+    } catch {
+        brain.stop()
+        fail(error)
+    }
+    exit(0)
+}
+
 if let file = options.hear {
     do {
         for line in try await Listener.hear(file: file) { print(line) }

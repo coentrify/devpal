@@ -5,8 +5,8 @@ let package = Package(
     name: "Devpal",
     platforms: [.macOS(.v14)],
     dependencies: [
-        // Speech recognition and voice activity detection only: no text processing, speech or diarization.
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.4", traits: []),
+        // Speech recognition, voice activity detection and speech: no text processing or diarization.
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.18.4", traits: ["TTS"]),
     ],
     targets: [
         .executableTarget(
