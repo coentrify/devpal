@@ -9,6 +9,16 @@ A persona is the companion's character: its name, wake words, look, voice and wa
 - Its character sets its way of speaking: its style, its focus and what it talks about.
 - The package ships with a plain persona, so the companion runs before anyone makes one.
 
+## The Plain Persona (Not Yet Implemented)
+
+- The plain persona is a generic soldier made of glitching code, an AI assistant out of an 80s computer movie.
+- Its stills glow in neon lines on a dark grid.
+- A retro CRT filter lies over its screen, with horizontal scan lines.
+- Now and then its picture glitches: a line tears, the colors split, a frame jumps.
+- It speaks like a soldier on duty: short, crisp and loyal.
+- When you say "report for duty", it answers "Sir, yes sir!"
+- Its voice carries a light digital crackle, and a word glitches now and then.
+
 ## Making A Persona (Not Yet Implemented)
 
 - Quick tools make a persona: its voice, its character and its way of speaking.
