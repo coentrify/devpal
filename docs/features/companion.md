@@ -21,12 +21,12 @@ The companion lives on a dev machine's screen, wakes when you talk to it, and sp
 - Each layer is picked on its own, so any background, persona and filter go together.
 - While it is quiet, it shows its idle still.
 - Subtitles show the dialogue near the bottom of the screen, under the filter.
+- What you say glows cyan, and what it says glows magenta.
 
 ## Screen While Awake (Not Yet Implemented)
 
 - While awake, it fills its screen.
 - While it speaks, its speaking stills rotate.
-- While it speaks, subtitles show what it says.
 
 ## Backgrounds
 
@@ -39,9 +39,12 @@ The companion lives on a dev machine's screen, wakes when you talk to it, and sp
 - The package ships a retro CRT filter, with horizontal scan lines.
 - Now and then the CRT picture glitches: a line tears, the colors split, a frame jumps.
 
-## Speaking (Not Yet Implemented)
+## Speaking
 
-- When it speaks, you hear it through the machine's speaker.
+- When it speaks, you hear it through the machine's speaker, in its persona's voice.
+
+## Speaking On Its Own (Not Yet Implemented)
+
 - While awake, it says something on its own every 10 to 20 minutes.
 - What it says on its own is a joke or a remark, in its persona's character, about the projects it knows.
 - No line repeats within a week.

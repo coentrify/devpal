@@ -36,10 +36,16 @@ How devpal is built: the decisions so far.
 
 ## Speaking
 
-- The voice is a free text-to-speech model that runs on the machine.
+- The voice is Kokoro 82M through FluidAudio, on the Neural Engine.
+- A persona's `voice.json` picks its Kokoro voice. The plain persona speaks as `am_onyx`.
+- Each sentence is synthesized while the one before it plays.
+- Until there is echo cancellation, the microphone is muted while it speaks, and for 300 ms after.
 - A voice can be trained from a sample, on the machine.
 
 ## Brain
 
-- A small talk model runs on the machine, fast enough to answer at once, with its persona's character in the prompt.
+- The talk model is Qwen3 4B Instruct 2507, quantized to Q4_K_M, in `~/.devpal/models`.
+- llama.cpp's server runs it on port 5276, started by the app and stopped when it quits. Its log is `~/.devpal/logs/brain.log`.
+- A persona's `tone.md` is the model's instructions.
+- A full spoken answer takes about 1.3 seconds once the model is warm.
 - It hands a question on to Claude Code when it needs more, such as a project's docs or its agents, on each user's own Claude login.
