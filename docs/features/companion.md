@@ -15,21 +15,25 @@ The companion lives on a dev machine's screen, wakes when you talk to it, and sp
 - When you wish it good night, it falls asleep at once.
 - While asleep, it takes less than 2% CPU.
 
-## Screen (Not Yet Implemented)
+## Screen
 
-- While awake, it fills its screen.
 - The screen stacks three layers: a background, the persona, and a filter in front of both.
 - Each layer is picked on its own, so any background, persona and filter go together.
 - While it is quiet, it shows its idle still.
+- Subtitles show the dialogue near the bottom of the screen, under the filter.
+
+## Screen While Awake (Not Yet Implemented)
+
+- While awake, it fills its screen.
 - While it speaks, its speaking stills rotate.
 - While it speaks, subtitles show what it says.
 
-## Backgrounds (Not Yet Implemented)
+## Backgrounds
 
 - A background fills the screen behind the persona.
 - The package ships a synthwave background: a neon grid running to a striped setting sun.
 
-## Filters (Not Yet Implemented)
+## Filters
 
 - A filter lies over the whole screen, such as an old TV, a modern screen or black and white.
 - The package ships a retro CRT filter, with horizontal scan lines.

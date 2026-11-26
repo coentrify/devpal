@@ -29,7 +29,10 @@ How devpal is built: the decisions so far.
 - A voice detector starts speech recognition only while someone talks.
 - Only what follows the wake words goes to its brain.
 - Echo cancellation keeps it from hearing itself.
-- On a Mac, speech recognition is Parakeet v3 through Core ML on the Neural Engine. Whisper large-v3-turbo is the fallback.
+- On a Mac, speech recognition is Parakeet v3 through FluidAudio, on the Neural Engine.
+- A Silero voice detector cuts what you say into sentences at 0.75 seconds of silence.
+- Special words are rescored with a small CTC model, from the words devpal ships and the machine's own list in `~/.devpal/vocabulary.txt`.
+- Parakeet v3 with the word list won the test on this Mac mini: 4.8% word errors, 17 of 20 special words, 38 ms a sentence. Whisper large-v3-turbo had 11.5% and 4 of 20 at 231 ms, and Apple's on-device recognizer 21.8% and none. Neither got better from a word list.
 
 ## Speaking
 

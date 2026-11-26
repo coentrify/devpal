@@ -2,6 +2,13 @@
 
 You talk with the companion out loud, and it answers in its persona's voice and character ([coentrify/devpal#2](https://github.com/coentrify/devpal/issues/2)).
 
+## Listening
+
+- It listens all the time through the machine's microphone, and never sends or stores what it hears.
+- A sentence ends once you have been silent for a moment.
+- What you said shows as subtitles on its screen.
+- You teach it special words, such as names, brands and odd verbs, in a list that stays on your machine.
+
 ## Talking (Not Yet Implemented)
 
 - When you say its wake words and a sentence, it answers out loud.
