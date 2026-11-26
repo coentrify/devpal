@@ -10,6 +10,13 @@ How devpal is built: the decisions so far.
 - The sound, the speech recognition and the window sit behind adapters.
 - Windows and Linux follow, each once its adapters exist.
 
+## Screen
+
+- The app is native Swift, in `app/`, and draws with Metal.
+- A background is a Metal shader in `backgrounds/<name>/`, and a filter is one in `filters/<name>/`. They are compiled when the app starts.
+- A persona's image is a set of SVG stills in `personas/<name>/image/`.
+- `npm start` opens the window, and `--snapshot` renders one frame to a PNG for the tests.
+
 ## Package
 
 - On npm it is `devpal`, public like `coentrify`.

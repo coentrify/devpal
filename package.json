@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "description": "A talking companion that lives on a dev machine's screen.",
   "scripts": {
+    "start": "swift run --package-path app -c release Devpal",
+    "build:app": "swift build --package-path app",
+    "test:app": "npm run build:app && node --test tools/app/*.test.mjs",
     "start:wiki": "vitepress dev docs --port 5274",
     "build:wiki": "vitepress build docs",
     "test:tools": "node --test tools/coentrify/*.test.mjs",
@@ -10,7 +13,7 @@
     "check:coentrify-json": "node tools/coentrify/coentrify-json-check.mjs",
     "check:coentrify-json:staged": "node tools/coentrify/coentrify-json-check.mjs --staged",
     "check:attribution": "node tools/coentrify/attribution-check.mjs",
-    "check": "npm run test:tools && npm run check:coentrify-json && npm run build:wiki",
+    "check": "npm run test:tools && npm run test:app && npm run check:coentrify-json && npm run build:wiki",
     "append:healing": "node tools/coentrify/healing-append.mjs",
     "install:hooks": "git config core.hooksPath .githooks",
     "hooks:session-start": "npm install --no-audit --no-fund --silent && npm run install:hooks && npm run check:coentrify",

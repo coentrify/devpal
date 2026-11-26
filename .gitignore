@@ -7,3 +7,4 @@ personas/*
 !personas/plain/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+app/.build/

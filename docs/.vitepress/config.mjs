@@ -18,7 +18,7 @@ const NEWEST_FIRST = ['log', 'activity', 'changelog']
 const GROUP_TITLES = { log: 'Request Log', activity: 'Activity Log' }
 const SITE_DATA_MODULE = '/@siteData'
 const SETTLE_MILLISECONDS = 500
-const WATCHER_IGNORED = ['**/.vitepress/dist/**', '**/.vitepress/cache/**', '**/personas/**']
+const WATCHER_IGNORED = ['**/.vitepress/dist/**', '**/.vitepress/cache/**', '**/personas/**', '**/app/.build/**']
 
 function rewrite(page) {
   if (page === HOME) return 'index.md'
