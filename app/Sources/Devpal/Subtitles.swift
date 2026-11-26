@@ -24,10 +24,14 @@ enum Subtitles {
     static let margin: Float = 0.08
     /// The text height as a share of the screen's height.
     static let fontShare: CGFloat = 0.054
+    /// The label at the top: smaller, and as wide as its text.
+    static let labelFontShare: CGFloat = 0.032
+    static let labelMargin: Float = 0.09
 
-    static func texture(_ line: Line, screenWidth: Int, screenHeight: Int, device: MTLDevice) -> MTLTexture? {
+    static func texture(_ line: Line, screenWidth: Int, screenHeight: Int, device: MTLDevice,
+                        fontShare: CGFloat = Subtitles.fontShare, fit: Bool = false) -> MTLTexture? {
         let text = line.text
-        let width = max(Int(Float(screenWidth) * Self.width), 64)
+        var width = max(Int(Float(screenWidth) * Self.width), 64)
         let fontSize = max(CGFloat(screenHeight) * fontShare, 12)
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .bold)
         let paragraph = NSMutableParagraphStyle()
@@ -55,6 +59,7 @@ enum Subtitles {
             with: NSSize(width: CGFloat(width) - 2 * padding, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
+        if fit { width = min(width, Int(ceil(bounds.width + 2 * padding))) }
         let height = Int(ceil(bounds.height + 2 * padding))
         let bytesPerRow = width * 4
         var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)

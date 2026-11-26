@@ -44,9 +44,20 @@ final class Memory: @unchecked Sendable {
         }
     }
 
-    /// The words of a fact that carry meaning: three letters or more.
+    /// Whether a remembered fact likely answers the question: they share at least two meaningful words.
+    func answers(_ question: String) -> Bool {
+        let asked = Self.words(question)
+        return facts.contains { Self.words($0).intersection(asked).count >= 2 }
+    }
+
+    private static let common: Set<String> = ["the", "and", "does", "did", "was", "are", "what", "when", "who", "how", "why",
+                                              "where", "which", "that", "this", "with", "for", "have", "has", "you", "our", "your"]
+
+    /// The words of a fact that carry meaning: three letters or more, not common, without a plural s.
     private static func words(_ text: String) -> Set<String> {
-        Set(text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { $0.count >= 3 })
+        Set(text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 3 && !common.contains($0) }
+            .map { $0.count > 3 && $0.hasSuffix("s") ? String($0.dropLast()) : $0 })
     }
 
     private func read() -> [String] {

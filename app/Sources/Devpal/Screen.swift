@@ -29,6 +29,10 @@ final class Screen {
 
     /// The line of dialogue on screen, or none.
     var subtitle = Line.none
+    /// A small label at the top of the screen, such as the project in focus, or nothing.
+    var label = ""
+    private var labelTexture: MTLTexture?
+    private var labelKey: (text: String, width: Int, height: Int)?
 
     init(layers: Layers, targetFormat: MTLPixelFormat) throws {
         guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
@@ -87,6 +91,13 @@ final class Screen {
             encoder.setVertexBytes(&frame, length: MemoryLayout<Frame>.stride, index: 0)
             encoder.setFragmentTexture(still, index: 0)
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            if let texture = labelTexture(width: target.width, height: target.height) {
+                var band = frame
+                band.personaRect = labelRect(texture, target)
+                encoder.setVertexBytes(&band, length: MemoryLayout<Frame>.stride, index: 0)
+                encoder.setFragmentTexture(texture, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            }
             if let texture = subtitleTexture(width: target.width, height: target.height) {
                 var band = frame
                 band.personaRect = subtitleRect(texture, target)
@@ -122,6 +133,19 @@ final class Screen {
         let width = Float(texture.width) / Float(target.width)
         let height = Float(texture.height) / Float(target.height)
         return SIMD4((1 - width) / 2, 1 - Subtitles.margin - height, width, height)
+    }
+
+    /// The label sits at the top left, inside the curve of the filter.
+    private func labelRect(_ texture: MTLTexture, _ target: MTLTexture) -> SIMD4<Float> {
+        SIMD4(Subtitles.labelMargin, Subtitles.labelMargin, Float(texture.width) / Float(target.width), Float(texture.height) / Float(target.height))
+    }
+
+    private func labelTexture(width: Int, height: Int) -> MTLTexture? {
+        guard !label.isEmpty else { return nil }
+        if let key = labelKey, key.text == label, key.width == width, key.height == height { return labelTexture }
+        labelTexture = Subtitles.texture(.status(label), screenWidth: width, screenHeight: height, device: device, fontShare: Subtitles.labelFontShare, fit: true)
+        labelKey = (label, width, height)
+        return labelTexture
     }
 
     private func subtitleTexture(width: Int, height: Int) -> MTLTexture? {

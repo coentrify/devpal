@@ -20,18 +20,29 @@ final class Brain: @unchecked Sendable {
     private let lock = NSLock()
     private var history: [[String: Any]] = []
     private let memory: Memory
-    private let machine: Machine?
+    private let agents: Agents?
+    private var focused: String?
+
+    /// The project in focus: questions and orders go to its agent.
+    var focus: String? {
+        get { lock.withLock { focused } }
+        set { lock.withLock { focused = newValue } }
+    }
+
+
     private var base: URL { URL(string: "http://127.0.0.1:\(Self.port)")! }
 
-    init(tone: String, memory: Memory = Memory(), machine: Machine? = nil, model: URL = Brain.defaultModel) {
+    init(tone: String, memory: Memory = Memory(), agents: Agents? = nil, model: URL = Brain.defaultModel) {
         self.tone = tone
         self.memory = memory
-        self.machine = machine
+        self.agents = agents
         self.model = model
     }
 
+    /// Starts the model's server, once: later calls return at once while it is up.
     func start() async throws {
         guard FileManager.default.fileExists(atPath: model.path) else { throw BrainError.noModel(model.path) }
+        if let server, server.isRunning, await healthy() { return }
         if !(await healthy()) {
             guard let binary = Self.findServer() else { throw BrainError.noServer }
             try FileManager.default.createDirectory(at: Self.log.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -69,6 +80,7 @@ final class Brain: @unchecked Sendable {
             let task = Task {
                 var said = ""
                 do {
+                    try await self.start()
                     var messages = turn.list
                     for round in 0..<Self.toolRounds {
                         // Tools are offered once: after them, the model only answers.
@@ -77,14 +89,9 @@ final class Brain: @unchecked Sendable {
                             continuation.yield(piece)
                         }
                         guard !step.calls.isEmpty else { break }
-                        // Looking something up takes a while, so it says so first.
-                        if step.text.isEmpty, step.calls.contains(where: { $0.name == "ask_machine" }) {
-                            said += Self.checking + " "
-                            continuation.yield(Self.checking + " ")
-                        }
                         messages.append(["role": "assistant", "content": step.text, "tool_calls": step.calls.map(\.json)])
                         for call in step.calls {
-                            messages.append(["role": "tool", "tool_call_id": call.id, "content": await self.run(call)])
+                            messages.append(["role": "tool", "tool_call_id": call.id, "content": self.run(call)])
                         }
                     }
                     self.lock.withLock { self.history.append(["role": "assistant", "content": said]) }
@@ -147,15 +154,17 @@ final class Brain: @unchecked Sendable {
                 calls[index] = call
             }
         }
-        return (text, calls.keys.sorted().compactMap { calls[$0] })
+        let found = calls.keys.sorted().compactMap { calls[$0] }
+        if Self.debug { FileHandle.standardError.write(Data("devpal debug: brain tools=\(tools) text=\(text) calls=\(found.map { "\($0.name)(\($0.arguments))" })\n".utf8)) }
+        return (text, found)
     }
 
-    private func run(_ call: Call) async -> String {
+    /// With DEVPAL_DEBUG=1, what the model does goes to standard error, and nowhere else.
+    private static let debug = ProcessInfo.processInfo.environment["DEVPAL_DEBUG"] == "1"
+
+    private func run(_ call: Call) -> String {
         let arguments = (try? JSONSerialization.jsonObject(with: Data(call.arguments.utf8))) as? [String: Any]
         switch call.name {
-        case "ask_machine":
-            guard let machine else { return "Looking things up is off." }
-            return await machine.ask(arguments?["question"] as? String ?? "")
         case "remember": return memory.remember(arguments?["fact"] as? String ?? "")
         case "forget": return memory.forget(arguments?["fact"] as? String ?? "")
         default: return "No such tool."
@@ -166,54 +175,37 @@ final class Brain: @unchecked Sendable {
     private func instructions() -> String {
         let facts = memory.facts
         let remembered = facts.isEmpty ? "You remember nothing yet." : "What you remember:\n" + facts.map { "- \($0)" }.joined(separator: "\n")
-        return [tone, Self.capabilities, Self.memoryRules, remembered].joined(separator: "\n\n")
+        let focusLine = focus.map { "The project in focus is \($0)." } ?? "No project is in focus."
+        let projects = "The projects on this machine: \((agents?.names ?? []).joined(separator: ", "))."
+        return [tone, Self.rules, projects, focusLine, remembered].joined(separator: "\n\n")
     }
 
-    /// What it can and cannot do, so it can say so. Kept beside the tools, so it stays true as they change.
-    static let capabilities = """
-        What you can do: you live on the developer's screen and listen through the microphone. You hear the \
-        words they say, and answer out loud, with your words shown as subtitles. You run entirely on their \
-        machine: your brain is a small language model, Qwen3 4B, your voice is Kokoro, and your hearing is \
-        Parakeet. You keep a memory on this machine, and you remember the last few exchanges of this \
-        conversation. You stop talking when the developer starts. To learn anything about the projects on this \
-        machine, their files, docs, wikis or progress, call ask_machine: Claude Code looks it up for you, \
-        read-only, which takes a little while. You know nothing about the projects beyond what you \
-        remember: every question about what a project is, holds or how it is going needs ask_machine, and you \
-        never guess or make anything up about them. Call it at once, without writing anything first: never \
-        offer to check, never say you could or will check. When you cannot tell \
-        what the developer means, ask one short question instead. When looking it up fails, say why in a few words. What you cannot do yet: change anything in the projects, talk to \
-        the agents working on them, or browse the web.
-
-        How you talk: say only what answers the developer, in one short sentence, and stop. Never repeat \
-        yourself, within an answer or from an earlier one.
+    /// Hard rules, short and numbered, as a small model follows them best. What it can do is listed from
+    /// what is wired up, so it never claims an ability it does not have.
+    static let rules = """
+        Rules:
+        1. Answer in one short sentence, and stop. Never repeat yourself.
+        2. You live on the developer's screen. You hear them through the microphone and answer out loud.
+        3. You run on their machine: Qwen3 4B is your brain, Kokoro your voice, Parakeet your hearing.
+        4. Each project has an agent, Claude Code. Questions about a project go to its agent, and orders start after the developer says go. That is handled for you.
+        5. You know nothing about the projects beyond what you remember. Never guess about them.
+        6. The developer focuses a project with "work on" and its name, leaves it with "back to base", and clones one with "clone" and its name.
+        7. They stop you by saying stop. You keep a memory on this machine: "remember that" and "forget" change it.
+        8. You cannot push code, delete files or browse the web.
+        9. When you cannot tell what they mean, ask one short question.
+        10. Call remember or forget only when the developer asks you to keep or drop a fact.
         """
 
-    /// Said while Claude Code looks something up.
+    /// Said while an agent looks something up.
     static let checking = "Checking."
-
-
-    static let memoryRules = """
-        You have a memory on this machine. When the developer tells you something worth keeping, or asks you to \
-        remember or learn something, call remember with one short fact. When they ask you to forget something, \
-        call forget with that fact, copied from what you remember. Only the tools keep or drop a fact: never \
-        say you remembered or forgot something without calling the tool. Then confirm in a few words. Answer from what you remember \
-        when it helps.
-        """
 
     static let toolRounds = 2
     /// Lower while tools are on offer, so a request to remember is acted on, not only answered.
-    static let toolTemperature = 0.3
+    static let toolTemperature = 0.0
     /// Discourages saying the same words again.
     static let repeatPenalty = 1.15
 
     static var tools: [[String: Any]] { [
-        ["type": "function", "function": [
-            "name": "ask_machine",
-            "description": "Ask Claude Code about the projects on this machine: their files, docs, wikis and progress.",
-            "parameters": ["type": "object", "properties": [
-                "question": ["type": "string", "description": "The question, complete and self-contained."],
-            ], "required": ["question"]],
-        ]],
         ["type": "function", "function": [
             "name": "remember",
             "description": "Keep a fact in memory for later conversations.",
@@ -229,6 +221,74 @@ final class Brain: @unchecked Sendable {
             ], "required": ["fact"]],
         ]],
     ] }
+
+    /// What a sentence asks for, so it is routed in code.
+    enum Intent: String, CaseIterable {
+        /// A question about the projects: what one is, holds, or how it is going.
+        case question
+        /// Work to do on a project.
+        case order
+        /// Anything else: talk, the companion itself, its memory.
+        case chat
+    }
+
+    static let classifying = """
+        Classify what the developer said to their voice companion. Answer with one word.
+        question: asks about a software project, its files, docs, wiki, tickets, agents, progress or status.
+        order: asks for work on a project: write, change, add, fix, run, build, test, commit, start working.
+        chat: anything else, such as greetings, thanks, jokes, questions about the companion, or about the time.
+        Examples:
+        "What's the status?" question
+        "What is Addix about?" question
+        "How far along is the city map?" question
+        "wat did the agent do last" question
+        "Is there a wiki page about the districts?" question
+        "Can you tell me about the order of the districts?" question
+        "Create a file called notes.txt." order
+        "Fix the broken link on the overview page." order
+        "Start working on the next ticket." order
+        "Add a district called Neon Row." order
+        "run the tests" order
+        "Commit the changes." order
+        "How are you?" chat
+        "Tell me a joke." chat
+        "What can you do?" chat
+        "Who are you?" chat
+        "I ordered pizza." chat
+        "Thanks." chat
+        "Good night." chat
+        """
+
+    /// Sorts a sentence into question, order or chat. The model can only answer one of the three.
+    func classify(_ text: String) async throws -> Intent {
+        try await start()
+        var request = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let choices = Intent.allCases.map(\.rawValue)
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "messages": [["role": "system", "content": Self.classifying], ["role": "user", "content": text]],
+            "temperature": 0, "max_tokens": 24,
+            "response_format": ["type": "json_schema", "json_schema": ["name": "intent", "schema": [
+                "type": "object", "properties": ["intent": ["type": "string", "enum": choices]], "required": ["intent"],
+            ]]],
+        ] as [String: Any])
+        let (data, _) = try await URLSession.shared.data(for: request)
+        let reply = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let message = ((reply?["choices"] as? [[String: Any]])?.first?["message"] as? [String: Any])?["content"] as? String ?? ""
+        let intent = (try? JSONSerialization.jsonObject(with: Data(message.utf8)) as? [String: Any])?["intent"] as? String
+        if Self.debug { FileHandle.standardError.write(Data("devpal debug: \(text) -> \(intent ?? "?")\n".utf8)) }
+        return intent.flatMap(Intent.init(rawValue:)) ?? .chat
+    }
+
+    /// Keeps an exchange that went elsewhere, such as to an agent, so the conversation still holds it.
+    func note(_ said: String, _ answer: String) {
+        lock.withLock {
+            history.append(["role": "user", "content": said])
+            history.append(["role": "assistant", "content": answer])
+            history = Array(history.suffix(Self.turnsKept))
+        }
+    }
 
     private func healthy() async -> Bool {
         var request = URLRequest(url: base.appendingPathComponent("health"))

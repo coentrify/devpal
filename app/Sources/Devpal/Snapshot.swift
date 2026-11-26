@@ -6,6 +6,7 @@ enum Snapshot {
     static func write(_ options: Options, to file: URL) throws {
         let screen = try Screen(layers: options.layers, targetFormat: .bgra8Unorm)
         screen.subtitle = .persona(options.subtitle)
+        screen.label = options.label
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: options.width, height: options.height, mipmapped: false)
         descriptor.usage = .renderTarget
         descriptor.storageMode = .shared

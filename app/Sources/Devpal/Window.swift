@@ -18,8 +18,7 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private var clearSubtitle: DispatchWorkItem?
     private var brain: Brain?
     private var speech: Speech?
-    private var persona: Persona?
-    private var commands: Commands?
+    private var conversation: Conversation?
     private var canTalk = false
     private var talking = false
     /// The microphone and the voice share one engine, so echo cancellation knows what is playing.
@@ -78,10 +77,13 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             report("cannot talk: \(error)")
             return
         }
-        self.persona = persona
         let memory = Memory(file: options.memory)
-        commands = Commands(memory: memory)
-        let brain = Brain(tone: persona.tone, memory: memory, machine: Machine(projects: options.projects))
+        let agents = Agents(projects: options.projects)
+        let brain = Brain(tone: persona.tone, memory: memory, agents: agents)
+        let conversation = Conversation(persona: persona, memory: memory, brain: brain, agents: agents)
+        conversation.onAnnounce = { [weak self] text in self?.announce(text) }
+        conversation.onFocus = { [weak self] project in self?.screen?.label = project.map { "// \($0.uppercased())" } ?? "" }
+        self.conversation = conversation
         let speech = Speech(voice: persona.voice, engine: audio)
         self.brain = brain
         self.speech = speech
@@ -96,9 +98,23 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         }
     }
 
-    /// Answers what you said, sentence by sentence: each is spoken and shown as soon as it is ready.
+    /// Answers what you said.
     private func answer(_ text: String) {
-        guard canTalk, let brain, let speech else { return }
+        guard canTalk, let conversation else { return }
+        say(conversation.reply(to: text))
+    }
+
+    /// Says something on its own, such as an agent's report, once it is not talking.
+    private func announce(_ text: String) {
+        Task {
+            while talking { try? await Task.sleep(for: .milliseconds(300)) }
+            say(Conversation.just(text))
+        }
+    }
+
+    /// Speaks a reply sentence by sentence: each is spoken and shown as soon as it is ready.
+    private func say(_ reply: AsyncThrowingStream<String, Error>) {
+        guard let speech else { return }
         interrupt()
         talking = true
         let id = answerID
@@ -116,8 +132,6 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
                 }
             }
             do {
-                let fixed = persona?.fixedReply(to: text) ?? commands?.run(text)
-                let reply = fixed.map(Self.just) ?? brain.reply(to: text)
                 for try await piece in reply {
                     for sentence in cutter.add(piece) { speak(sentence) }
                 }
@@ -135,10 +149,6 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             listener?.discard()
             talking = false
         }
-    }
-
-    private static func just(_ text: String) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { $0.yield(text); $0.finish() }
     }
 
     /// Stops the answer at once: no more text, no more speech.

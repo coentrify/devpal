@@ -20,18 +20,41 @@ if let text = options.say {
     exit(0)
 }
 
-if let text = options.ask {
-    let persona = try? Persona(folder: options.layers.persona)
-    let memory = Memory(file: options.memory)
-    if let fixed = persona?.fixedReply(to: text) ?? Commands(memory: memory).run(text) {
-        print(fixed)
-        exit(0)
-    }
-    let brain = Brain(tone: persona?.tone ?? "", memory: memory, machine: Machine(projects: options.projects))
+if !options.classify.isEmpty {
+    let brain = Brain(tone: "", memory: Memory(file: options.memory))
     do {
-        try await brain.start()
-        for try await piece in brain.reply(to: text) { print(piece, terminator: "") }
-        print()
+        for text in options.classify { print(try await brain.classify(text).rawValue) }
+        brain.stop()
+    } catch {
+        brain.stop()
+        fail(error)
+    }
+    exit(0)
+}
+
+if !options.ask.isEmpty {
+    // Each --ask is one turn of the same conversation: one answer per line, then what is announced after.
+    let persona: Persona
+    do {
+        persona = try Persona(folder: options.layers.persona)
+    } catch {
+        fail(error)
+    }
+    let memory = Memory(file: options.memory)
+    let agents = Agents(projects: options.projects)
+    let brain = Brain(tone: persona.tone, memory: memory, agents: agents)
+    let conversation = Conversation(persona: persona, memory: memory, brain: brain, agents: agents)
+    conversation.onAnnounce = { print($0) }
+    do {
+        for text in options.ask {
+            var line = ""
+            let reply = conversation.reply(to: text)
+            for try await piece in reply {
+                line += piece
+            }
+            print(line.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        await conversation.finishWork()
         brain.stop()
     } catch {
         brain.stop()

@@ -14,19 +14,23 @@ struct Options {
     var fullScreen = false
     var listen = true
     var subtitle = ""
+    var label = ""
     var hear: URL?
     var talk = true
     var say: String?
     var to: URL?
-    var ask: String?
+    /// Turns of one conversation, said in order.
+    var ask: [String] = []
+    /// Sentences to sort into question, order or chat, one answer per line.
+    var classify: [String] = []
     var memory = Memory.defaultFile
     /// The folder that holds the projects Claude Code looks into.
     var projects = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("dev")
 
     static let usage = """
     Usage: devpal [--background <name>] [--persona <name>] [--filter <name>]
-                  [--root <path>] [--full-screen] [--no-listen] [--no-talk] [--subtitle <text>]
-                  [--hear <file.wav>] [--say <text> [--to <file.wav>]] [--ask <text>] [--memory <file.md>]
+                  [--root <path>] [--full-screen] [--no-listen] [--no-talk] [--subtitle <text>] [--label <text>]
+                  [--hear <file.wav>] [--say <text> [--to <file.wav>]] [--ask <text>]... [--classify <text>]... [--memory <file.md>] [--projects <folder>]
                   [--snapshot <file.png> [--size <width>x<height>] [--time <seconds>]]
     """
 
@@ -64,12 +68,15 @@ struct Options {
             case "--full-screen": options.fullScreen = true
             case "--no-listen": options.listen = false
             case "--subtitle": options.subtitle = try value(flag)
+            case "--label": options.label = try value(flag)
             case "--hear": options.hear = URL(fileURLWithPath: try value(flag))
             case "--no-talk": options.talk = false
             case "--say": options.say = try value(flag)
             case "--to": options.to = URL(fileURLWithPath: try value(flag))
-            case "--ask": options.ask = try value(flag)
+            case "--ask": options.ask.append(try value(flag))
+            case "--classify": options.classify.append(try value(flag))
             case "--memory": options.memory = URL(fileURLWithPath: try value(flag))
+            case "--projects": options.projects = URL(fileURLWithPath: try value(flag))
             case "--time":
                 guard let time = Float(try value(flag)) else { throw OptionsError.badValue(flag) }
                 options.time = time

@@ -77,3 +77,42 @@ test('report for duty is answered the same every time, without the model', () =>
     assert.equal(run('--memory', memory, '--ask', said).stdout.trim(), 'Sir, yes sir!')
   }
 }))
+
+test('sentences are sorted into question, order or chat', hasModel, () => {
+  const cases = [
+    ['How is the city map going?', 'question'],
+    ['What does the wiki say about the factions?', 'question'],
+    ['Fix the typo on the overview page.', 'order'],
+    ['Start working on the next story.', 'order'],
+    ['Tell me something funny.', 'chat'],
+    ['What can you do for me?', 'chat'],
+  ]
+  const result = run(...cases.flatMap(([said]) => ['--classify', said]))
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(result.stdout.trim().split('\n'), cases.map(([, intent]) => intent))
+})
+
+test('focus, back to base, and orders read back word for word, waiting for go', hasModel, () => withMemory((memory) => {
+  const projects = mkdtempSync(join(tmpdir(), 'devpal-projects-'))
+  try {
+    spawnSync('mkdir', ['-p', join(projects, 'johnny-cyberquest')])
+    const result = run('--memory', memory, '--projects', projects,
+      '--ask', "Let's work on Johnny Cyberquest.",
+      '--ask', 'Fix the typo on the overview page.',
+      '--ask', 'Cancel.',
+      '--ask', 'Clone the numb repo on this machine.',
+      '--ask', 'No.',
+      '--ask', 'Back to base.')
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(result.stdout.trim().split('\n'), [
+      'Focus on johnny-cyberquest.',
+      'Order for johnny-cyberquest: Fix the typo on the overview page. Go?',
+      'Cancelled.',
+      'Clone numb onto this machine. Go?',
+      'Cancelled.',
+      'Back to base.',
+    ])
+  } finally {
+    rmSync(projects, { recursive: true, force: true })
+  }
+}))
