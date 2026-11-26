@@ -26,9 +26,14 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private var answering: Task<Void, Never>?
     private var answerID = 0
     /// After it speaks, the room settles this long before it listens again, so its echo is never taken for you.
-    static let echoTail: Duration = .milliseconds(500)
+    static let echoTail: Duration = .milliseconds(800)
     /// While it speaks it hears only these: saying one stops it at once.
-    static let stopWords: [[String]] = [["stop"], ["wait"], ["enough"], ["quiet"], ["pause"], ["hold", "on"], ["hang", "on"], ["shut", "up"]]
+    static let stopWords: [[String]] = [["stop"], ["enough"], ["quiet"], ["shut", "up"]]
+    /// Saying one holds everything, its speech and its answering, until you say continue.
+    static let pauseWords: [[String]] = [["pause"], ["wait"], ["hold", "on"], ["hang", "on"]]
+    static let continueWords: [[String]] = [["continue"], ["resume"], ["go", "on"], ["carry", "on"]]
+    /// While paused, it hears only the continue words.
+    private var paused = false
 
     init(options: Options) {
         self.options = options
@@ -161,11 +166,11 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         talking = false
     }
 
-    /// Whether you said one of the stop words.
-    private static func saysStop(_ text: String) -> Bool {
-        let heard = text.lowercased().components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
-        return stopWords.contains { stop in
-            heard.indices.contains { start in Array(heard[start...].prefix(stop.count)) == stop }
+    /// Whether you said one of the phrases, word for word.
+    private static func says(_ phrases: [[String]], in text: String) -> Bool {
+        let heard = Persona.words(text)
+        return phrases.contains { phrase in
+            heard.indices.contains { start in Array(heard[start...].prefix(phrase.count)) == phrase }
         }
     }
 
@@ -176,8 +181,8 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     private func startListening() {
         show(.status("Loading speech recognition..."), for: nil)
-        let listener = Listener(engine: audio) { [weak self] event in
-            Task { @MainActor in self?.handle(event) }
+        let listener = Listener(engine: audio) { [weak self] event, generation in
+            Task { @MainActor in self?.handle(event, generation: generation) }
         }
         listener.start()
         self.listener = listener
@@ -190,27 +195,55 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         if Self.debug { FileHandle.standardError.write(Data("devpal debug: \(message())\n".utf8)) }
     }
 
-    private func handle(_ event: Listener.Event) {
-        trace("\(event) talking=\(talking)")
+    private func handle(_ event: Listener.Event, generation: Int) {
+        trace("\(event) talking=\(talking) paused=\(paused) stale=\(listener?.isStale(generation) ?? false)")
         switch event {
         case .ready: show(.status("Listening"), for: 2)
-        case .speaking:
-            if !talking { show(.you("..."), for: nil) }
-        case .partial(let text):
-            if talking {
-                // While it speaks, only a stop word gets through: the rest may be its own echo.
-                guard Self.saysStop(text) else { return }
+        case .failed(let reason): report("cannot listen: \(reason)")
+        case .speaking, .partial, .heard:
+            // Audio from before it went quiet may hold its own voice: it was dropped, and so are its events.
+            guard listener?.isStale(generation) != true else { return }
+            listen(to: event)
+        }
+    }
+
+    private func listen(to event: Listener.Event) {
+        if case .partial(let text) = event, paused || talking {
+            if paused {
+                guard Self.says(Self.continueWords, in: text) else { return }
+                paused = false
+                speech?.resume()
+                listener?.discard()
+                show(.status("Continuing"), for: 2)
+            } else if Self.says(Self.pauseWords, in: text) {
+                paused = true
+                speech?.pause()
+                listener?.discard()
+                show(.status("Paused: say continue"), for: nil)
+            } else if Self.says(Self.stopWords, in: text) {
+                // While it speaks, only these get through: the rest may be its own echo.
                 interrupt()
                 listener?.discard()
                 show(.status("Listening"), for: 3)
+            }
+            return
+        }
+        switch event {
+        case .speaking:
+            if !talking, !paused { show(.you("..."), for: nil) }
+        case .partial(let text):
+            if Self.says(Self.pauseWords, in: text) {
+                paused = true
+                listener?.discard()
+                show(.status("Paused: say continue"), for: nil)
                 return
             }
             show(.you(text + " ..."), for: nil)
         case .heard(let text):
-            guard !talking else { return }
+            guard !talking, !paused else { return }
             show(.you(text), for: Self.subtitleSeconds)
             answer(text)
-        case .failed(let reason): report("cannot listen: \(reason)")
+        default: break
         }
     }
 

@@ -30,13 +30,18 @@ final class Listener: @unchecked Sendable {
     func discard() {
         control.requestDiscard()
     }
+
+    /// Whether an event comes from before the last discard: then it is about audio already dropped.
+    func isStale(_ generation: Int) -> Bool {
+        generation < control.generation
+    }
     private let chunks: AsyncStream<[Float]>
     private let feed: AsyncStream<[Float]>.Continuation
-    private let onEvent: @Sendable (Event) -> Void
+    private let onEvent: @Sendable (Event, Int) -> Void
     private var worker: Task<Void, Never>?
 
     /// The engine is shared with the voice, so echo cancellation knows what is playing.
-    init(engine: AVAudioEngine = AVAudioEngine(), onEvent: @escaping @Sendable (Event) -> Void) {
+    init(engine: AVAudioEngine = AVAudioEngine(), onEvent: @escaping @Sendable (Event, Int) -> Void) {
         self.engine = engine
         (chunks, feed) = AsyncStream.makeStream(of: [Float].self)
         self.onEvent = onEvent
@@ -46,16 +51,16 @@ final class Listener: @unchecked Sendable {
         worker = Task.detached { [chunks, onEvent, control] in
             do {
                 let pipeline = try await Pipeline.load()
-                onEvent(.ready)
-                try await pipeline.run(chunks, control: control, onEvent: onEvent)
+                onEvent(.ready, 0)
+                try await pipeline.run(chunks, control: control) { event, generation in onEvent(event, generation) }
             } catch {
-                onEvent(.failed("\(error)"))
+                onEvent(.failed("\(error)"), 0)
             }
         }
         do {
             try startMicrophone()
         } catch {
-            onEvent(.failed("microphone: \(error)"))
+            onEvent(.failed("microphone: \(error)"), 0)
         }
     }
 
@@ -71,7 +76,7 @@ final class Listener: @unchecked Sendable {
         }
         feed.finish()
         let heard = Heard()
-        try await pipeline.run(chunks, control: Control()) { event in
+        try await pipeline.run(chunks, control: Control()) { event, _ in
             switch event {
             case .heard(let text): heard.append(text)
             case .partial(let text): FileHandle.standardError.write(Data("partial: \(text)\n".utf8))
@@ -143,7 +148,9 @@ private struct Pipeline {
         return Pipeline(vad: vad, asr: asr, boosting: boosting)
     }
 
-    func run(_ chunks: AsyncStream<[Float]>, control: Control, onEvent: @Sendable (Listener.Event) -> Void) async throws {
+    func run(_ chunks: AsyncStream<[Float]>, control: Control, emit: @Sendable (Listener.Event, Int) -> Void) async throws {
+        var generation = control.generation
+        func onEvent(_ event: Listener.Event) { emit(event, generation) }
         let config = VadSegmentationConfig(minSilenceDuration: Listener.silence)
         let preRollSamples = Int(Listener.preRoll * Listener.sampleRate)
         let partialSamples = Int(Listener.partialEvery * Listener.sampleRate)
@@ -158,7 +165,8 @@ private struct Pipeline {
             while pending.count >= VadManager.chunkSize {
                 let chunk = Array(pending.prefix(VadManager.chunkSize))
                 pending.removeFirst(VadManager.chunkSize)
-                if control.takeDiscard() {
+                if let next = control.takeDiscard() {
+                    generation = next
                     state = await vad.makeStreamState()
                     sentence = nil
                     recent = []
@@ -221,18 +229,26 @@ private struct Pipeline {
 }
 
 /// Asks the listening loop to drop what it heard so far.
+/// Every discard starts a new generation, and every event carries the generation of the audio it is about.
 final class Control: @unchecked Sendable {
     private let lock = NSLock()
     private var discard = false
+    private var latest = 0
+
+    var generation: Int { lock.withLock { latest } }
 
     func requestDiscard() {
-        lock.withLock { discard = true }
+        lock.withLock {
+            discard = true
+            latest += 1
+        }
     }
 
-    func takeDiscard() -> Bool {
+    /// The new generation, when a discard is waiting.
+    func takeDiscard() -> Int? {
         lock.withLock {
             defer { discard = false }
-            return discard
+            return discard ? latest : nil
         }
     }
 }

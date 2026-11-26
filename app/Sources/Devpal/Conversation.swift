@@ -40,9 +40,15 @@ final class Conversation {
     private(set) var focus: String? {
         didSet {
             brain.focus = focus
+            agentSpoke = false
+            agentAsked = false
             onFocus(focus)
         }
     }
+    /// Whether the agent of the project in focus gave the last answer: then what you say next goes to it.
+    private var agentSpoke = false
+    /// Whether that answer was a question: then your yes is your go.
+    private var agentAsked = false
     private let waiting = Waiting()
     private var work: [Task<Void, Never>] = []
 
@@ -66,14 +72,24 @@ final class Conversation {
         return AsyncThrowingStream { continuation in
             let task = Task { @MainActor in
                 do {
+                    // The agent asked, and you said yes: that is your go, so it starts at once.
+                    if let project = focus, agentSpoke, agentAsked, Self.says(Self.yes, in: text) {
+                        agentAsked = false
+                        continuation.yield(start(.work(project: project, order: text)))
+                        continuation.finish()
+                        return
+                    }
                     var intent = try await brain.classify(text)
                     // What the memory already answers needs no agent.
                     if intent == .question, memory.answers(text) { intent = .chat }
+                    // Talking with the agent goes on: what is not an order is for the agent too.
+                    if focus != nil, agentSpoke, intent == .chat { intent = .question }
                     switch intent {
                     case .question:
                         continuation.yield(Brain.checking + " ")
                         let answer = await agents.ask(text, project: focus, rights: .read)
                         brain.note(text, answer)
+                        heard(fromAgent: answer)
                         continuation.yield(answer)
                     case .order:
                         guard let project = focus else {
@@ -83,6 +99,7 @@ final class Conversation {
                         waiting.set(.work(project: project, order: text))
                         continuation.yield("Order for \(project): \(Self.readBack(text)) Go?")
                     case .chat:
+                        agentSpoke = false
                         for try await piece in brain.reply(to: text) { continuation.yield(piece) }
                     }
                     continuation.finish()
@@ -92,6 +109,13 @@ final class Conversation {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Keeps track of the agent's last answer, so a follow-up goes back to it.
+    private func heard(fromAgent answer: String) {
+        guard focus != nil else { return }
+        agentSpoke = true
+        agentAsked = answer.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?")
     }
 
     static let whichProject = "Which project? Say work on, and its name."
@@ -137,7 +161,11 @@ final class Conversation {
             }
             return Self.cloning
         case .work(let project, let order):
-            background { await self.agents.ask(order, project: project, rights: .work) }
+            background {
+                let report = await self.agents.ask(order, project: project, rights: .work)
+                if self.focus == project { self.heard(fromAgent: report) }
+                return report
+            }
             return Self.underway
         }
     }

@@ -39,6 +39,16 @@ final class Speech: @unchecked Sendable {
         }
     }
 
+    /// Holds the speech where it is, to go on later.
+    func pause() {
+        player.pause()
+    }
+
+    /// Goes on where the speech was held.
+    func resume() {
+        player.play()
+    }
+
     /// Stops speaking at once. What was still to play is dropped.
     func stop() {
         player.stop()
