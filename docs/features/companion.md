@@ -22,6 +22,7 @@ The companion lives on a dev machine's screen, wakes when you talk to it, and sp
 - While it is quiet, it shows its idle still.
 - Subtitles show the dialogue near the bottom of the screen, under the filter.
 - What you say glows cyan, and what it says glows magenta.
+- The project in focus shows as a small label at the top left.
 
 ## Screen While Awake (Not Yet Implemented)
 

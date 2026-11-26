@@ -30,14 +30,28 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 ## Projects
 
-- When you ask about a project on the machine, it looks it up in that project's files and docs as they are today, read-only.
+- When you say work on and a project's name, it focuses on that project and shows the name on its screen.
+- When you say back to base, it leaves the project.
+- When you ask about a project, its agent looks it up in the project's files, docs and wiki as they are today, read-only.
+- Without a project in focus, it looks across all the projects on the machine.
+- While it looks something up, it says so, and then gives the agent's answer in a sentence or two.
+- What its memory already answers, it answers itself.
 - It never guesses about a project, and never only offers to look something up.
-- While it looks something up, it says so.
 - When looking something up fails, it says why.
 
-## Agents (Not Yet Implemented)
+## Orders
 
-- It talks to the agents working on the projects.
+- When you give an order with a project in focus, it reads the order back in your own words and asks: Go?
+- When you say go, the project's agent starts the work, and it tells you when the agent is done.
+- When you say no or cancel, nothing happens.
+- Without a project in focus, it asks which project.
+- An agent edits files, and runs git and npm, but never pushes or deletes.
+- Each project's agent keeps its own session, so it remembers earlier orders, and you can open that session yourself.
+
+## Cloning
+
+- When you ask it to clone a repository by its name, it asks: Go?
+- When you say go, it clones the repository onto the machine, focuses on it, and says what the project is.
 
 ## Memory
 
