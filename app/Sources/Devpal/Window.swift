@@ -69,7 +69,7 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             report("cannot talk: \(error)")
             return
         }
-        let brain = Brain(tone: persona.tone)
+        let brain = Brain(tone: persona.tone, memory: Memory(file: options.memory))
         let speech = Speech(voice: persona.voice)
         self.brain = brain
         self.speech = speech

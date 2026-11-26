@@ -19,16 +19,32 @@ struct Options {
     var say: String?
     var to: URL?
     var ask: String?
+    var memory = Memory.defaultFile
 
     static let usage = """
     Usage: devpal [--background <name>] [--persona <name>] [--filter <name>]
                   [--root <path>] [--full-screen] [--no-listen] [--no-talk] [--subtitle <text>]
-                  [--hear <file.wav>] [--say <text> [--to <file.wav>]] [--ask <text>]
+                  [--hear <file.wav>] [--say <text> [--to <file.wav>]] [--ask <text>] [--memory <file.md>]
                   [--snapshot <file.png> [--size <width>x<height>] [--time <seconds>]]
     """
 
-    static func parse(_ arguments: [String]) throws -> Options {
+    /// The machine's own choices, such as its persona, in ~/.devpal/config.json.
+    static let configFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".devpal/config.json")
+
+    struct Config: Decodable {
+        var background: String?
+        var persona: String?
+        var filter: String?
+    }
+
+    static func parse(_ arguments: [String], config: URL = configFile) throws -> Options {
         var options = Options()
+        if let data = try? Data(contentsOf: config) {
+            let chosen = try JSONDecoder().decode(Config.self, from: data)
+            options.background = chosen.background ?? options.background
+            options.persona = chosen.persona ?? options.persona
+            options.filter = chosen.filter ?? options.filter
+        }
         var rest = arguments[...]
         func value(_ flag: String) throws -> String {
             guard let next = rest.popFirst() else { throw OptionsError.missingValue(flag) }
@@ -49,6 +65,7 @@ struct Options {
             case "--say": options.say = try value(flag)
             case "--to": options.to = URL(fileURLWithPath: try value(flag))
             case "--ask": options.ask = try value(flag)
+            case "--memory": options.memory = URL(fileURLWithPath: try value(flag))
             case "--time":
                 guard let time = Float(try value(flag)) else { throw OptionsError.badValue(flag) }
                 options.time = time

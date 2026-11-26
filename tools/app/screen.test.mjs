@@ -11,7 +11,7 @@ const ROOT = new URL('../..', import.meta.url).pathname
 const PNG_SIGNATURE = '89504e470d0a1a0a'
 
 function run(...args) {
-  return spawnSync(BINARY, ['--root', ROOT, ...args], { encoding: 'utf8' })
+  return spawnSync(BINARY, ['--root', ROOT, '--persona', 'plain', ...args], { encoding: 'utf8' })
 }
 
 function pngSize(file) {

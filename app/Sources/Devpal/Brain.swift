@@ -1,7 +1,8 @@
 import Foundation
 
 /// The small talk model, run on the machine by llama.cpp's server, with the
-/// persona's tone as its instructions. It keeps the conversation so far.
+/// persona's tone and its memory as its instructions. It keeps the
+/// conversation so far, and keeps its memory with two tools: remember and forget.
 final class Brain: @unchecked Sendable {
     static let port = 5276
     static let defaultModel = FileManager.default.homeDirectoryForCurrentUser
@@ -10,16 +11,20 @@ final class Brain: @unchecked Sendable {
     /// The turns kept in the conversation, the oldest dropped first.
     static let turnsKept = 20
     static let startTimeout: TimeInterval = 180
+    /// A spoken answer never runs longer than this, whatever the tone asks.
+    static let maxTokens = 120
 
     private let model: URL
     private let tone: String
     private var server: Process?
     private let lock = NSLock()
-    private var history: [[String: String]] = []
+    private var history: [[String: Any]] = []
+    private let memory: Memory
     private var base: URL { URL(string: "http://127.0.0.1:\(Self.port)")! }
 
-    init(tone: String, model: URL = Brain.defaultModel) {
+    init(tone: String, memory: Memory = Memory(), model: URL = Brain.defaultModel) {
         self.tone = tone
+        self.memory = memory
         self.model = model
     }
 
@@ -50,42 +55,144 @@ final class Brain: @unchecked Sendable {
         server?.terminate()
     }
 
-    /// The reply to what was said, as it is written, piece by piece.
+    /// The reply to what was said, as it is written, piece by piece. The
+    /// model may call a memory tool first, and then answers.
     func reply(to text: String) -> AsyncThrowingStream<String, Error> {
-        let messages = lock.withLock { () -> [[String: String]] in
+        let turn = lock.withLock { () -> Messages in
             history.append(["role": "user", "content": text])
             history = Array(history.suffix(Self.turnsKept))
-            return [["role": "system", "content": tone]] + history
+            return Messages(list: history)
         }
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var said = ""
                 do {
-                    var request = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
-                    request.httpMethod = "POST"
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.httpBody = try JSONSerialization.data(withJSONObject: [
-                        "messages": messages, "stream": true, "temperature": 0.7, "max_tokens": 200,
-                    ])
-                    let (bytes, _) = try await URLSession.shared.bytes(for: request)
-                    for try await line in bytes.lines {
-                        guard line.hasPrefix("data: "), line != "data: [DONE]" else { continue }
-                        let chunk = try JSONSerialization.jsonObject(with: Data(line.dropFirst(6).utf8)) as? [String: Any]
-                        let choice = (chunk?["choices"] as? [[String: Any]])?.first
-                        if let piece = (choice?["delta"] as? [String: Any])?["content"] as? String, !piece.isEmpty {
+                    var messages = turn.list
+                    for round in 0..<Self.toolRounds {
+                        // Tools are offered once: after them, the model only answers.
+                        let step = try await self.stream(messages, tools: round == 0) { piece in
                             said += piece
                             continuation.yield(piece)
                         }
+                        guard !step.calls.isEmpty else { break }
+                        messages.append(["role": "assistant", "content": step.text, "tool_calls": step.calls.map(\.json)])
+                        for call in step.calls {
+                            messages.append(["role": "tool", "tool_call_id": call.id, "content": self.run(call)])
+                        }
                     }
-                    lock.withLock { history.append(["role": "assistant", "content": said]) }
+                    self.lock.withLock { self.history.append(["role": "assistant", "content": said]) }
                     continuation.finish()
                 } catch {
+                    // An interrupted answer is kept as far as it got.
+                    if !said.isEmpty { self.lock.withLock { self.history.append(["role": "assistant", "content": said + " ..."]) } }
                     continuation.finish(throwing: error)
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+
+    /// Chat messages are plain JSON, only handed over, never shared while changing.
+    private struct Messages: @unchecked Sendable {
+        var list: [[String: Any]]
+    }
+
+    private struct Call {
+        var id = ""
+        var name = ""
+        var arguments = ""
+
+        var json: [String: Any] {
+            ["id": id, "type": "function", "function": ["name": name, "arguments": arguments]]
+        }
+    }
+
+    /// One request to the model: its text goes out as it comes, its tool calls come back.
+    private func stream(_ messages: [[String: Any]], tools: Bool, onText: (String) -> Void) async throws -> (text: String, calls: [Call]) {
+        var request = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var body: [String: Any] = [
+            "messages": [["role": "system", "content": instructions()]] + messages,
+            "stream": true, "temperature": 0.7, "max_tokens": Self.maxTokens,
+        ]
+        if tools { body["tools"] = Self.tools }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (bytes, _) = try await URLSession.shared.bytes(for: request)
+        var text = ""
+        var calls: [Int: Call] = [:]
+        for try await line in bytes.lines {
+            guard line.hasPrefix("data: "), line != "data: [DONE]" else { continue }
+            let chunk = try JSONSerialization.jsonObject(with: Data(line.dropFirst(6).utf8)) as? [String: Any]
+            let delta = ((chunk?["choices"] as? [[String: Any]])?.first?["delta"]) as? [String: Any]
+            if let piece = delta?["content"] as? String, !piece.isEmpty {
+                text += piece
+                onText(piece)
+            }
+            for part in delta?["tool_calls"] as? [[String: Any]] ?? [] {
+                let index = part["index"] as? Int ?? 0
+                var call = calls[index] ?? Call()
+                if let id = part["id"] as? String { call.id = id }
+                let function = part["function"] as? [String: Any]
+                if let name = function?["name"] as? String { call.name += name }
+                if let arguments = function?["arguments"] as? String { call.arguments += arguments }
+                calls[index] = call
+            }
+        }
+        return (text, calls.keys.sorted().compactMap { calls[$0] })
+    }
+
+    private func run(_ call: Call) -> String {
+        let arguments = (try? JSONSerialization.jsonObject(with: Data(call.arguments.utf8))) as? [String: Any]
+        switch call.name {
+        case "remember": return memory.remember(arguments?["fact"] as? String ?? "")
+        case "forget": return memory.forget(arguments?["fact"] as? String ?? "")
+        default: return "No such tool."
+        }
+    }
+
+    /// The persona's tone, then what it remembers and how to keep its memory.
+    private func instructions() -> String {
+        let facts = memory.facts
+        let remembered = facts.isEmpty ? "You remember nothing yet." : "What you remember:\n" + facts.map { "- \($0)" }.joined(separator: "\n")
+        return [tone, Self.capabilities, Self.memoryRules, remembered].joined(separator: "\n\n")
+    }
+
+    /// What it can and cannot do, so it can say so. Kept beside the tools, so it stays true as they change.
+    static let capabilities = """
+        What you can do: you live on the developer's screen and listen through the microphone. You hear the \
+        words they say, and answer out loud, with your words shown as subtitles. You run entirely on their \
+        machine: your brain is a small language model, Qwen3 4B, your voice is Kokoro, and your hearing is \
+        Parakeet. You keep a memory on this machine, and you remember the last few exchanges of this \
+        conversation. What you cannot do yet: look into the projects, their files, their wikis or their agents, \
+        browse the web, or be interrupted while you speak.
+        """
+
+    static let memoryRules = """
+        You have a memory on this machine. When the developer tells you something worth keeping, or asks you to \
+        remember or learn something, call remember with one short fact. When they ask you to forget something, \
+        call forget with that fact, copied from what you remember. Then confirm in a few words. Answer from what you remember \
+        when it helps.
+        """
+
+    static let toolRounds = 2
+
+    static var tools: [[String: Any]] { [
+        ["type": "function", "function": [
+            "name": "remember",
+            "description": "Keep a fact in memory for later conversations.",
+            "parameters": ["type": "object", "properties": [
+                "fact": ["type": "string", "description": "The fact, as one short sentence."],
+            ], "required": ["fact"]],
+        ]],
+        ["type": "function", "function": [
+            "name": "forget",
+            "description": "Forget one remembered fact.",
+            "parameters": ["type": "object", "properties": [
+                "fact": ["type": "string", "description": "The remembered fact to forget, copied from what you remember."],
+            ], "required": ["fact"]],
+        ]],
+    ] }
 
     private func healthy() async -> Bool {
         var request = URLRequest(url: base.appendingPathComponent("health"))
