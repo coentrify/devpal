@@ -13,6 +13,7 @@
 - [Know What The Agents Work On](../features/agents.md)
 - [Show The Desktop, Captures And Wiki Pages By Voice](../features/show-on-screen.md)
 - [See You Through A Camera](../features/camera.md)
+- Publish The Wiki To GitHub Pages
 
 ## Blocked
 
