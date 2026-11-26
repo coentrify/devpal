@@ -4,6 +4,12 @@ How devpal is built: the decisions so far.
 
 - Everything runs on the machine: listening, speaking and the brain. Only a question handed on to Claude Code leaves it.
 
+## Computers
+
+- Macs first: the lightest app, with speech recognition on the Neural Engine ([coentrify/devpal#1](https://github.com/coentrify/devpal/issues/1)).
+- The sound, the speech recognition and the window sit behind adapters.
+- Windows and Linux follow, each once its adapters exist.
+
 ## Package
 
 - On npm it is `devpal`, public like `coentrify`.
