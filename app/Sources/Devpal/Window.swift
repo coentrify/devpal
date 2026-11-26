@@ -66,6 +66,7 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         switch event {
         case .ready: show("Listening", for: 2)
         case .speaking: show("...", for: nil)
+        case .partial(let text): show(text + " ...", for: nil)
         case .heard(let text): show(text, for: Self.subtitleSeconds)
         case .failed(let reason):
             FileHandle.standardError.write(Data("devpal: listening failed: \(reason)\n".utf8))

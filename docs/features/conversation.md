@@ -6,7 +6,7 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 - It listens all the time through the machine's microphone, and never sends or stores what it hears.
 - A sentence ends once you have been silent for a moment.
-- What you said shows as subtitles on its screen.
+- While you talk, the words so far show as subtitles, and settle once you are silent.
 - You teach it special words, such as names, brands and odd verbs, in a list that stays on your machine.
 
 ## Talking (Not Yet Implemented)

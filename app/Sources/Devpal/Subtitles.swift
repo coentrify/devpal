@@ -9,7 +9,7 @@ enum Subtitles {
     /// Their bottom edge sits this far above the bottom of the screen.
     static let margin: Float = 0.08
     /// The text height as a share of the screen's height.
-    static let fontShare: CGFloat = 0.042
+    static let fontShare: CGFloat = 0.054
 
     static func texture(_ text: String, screenWidth: Int, screenHeight: Int, device: MTLDevice) -> MTLTexture? {
         let width = max(Int(Float(screenWidth) * Self.width), 64)

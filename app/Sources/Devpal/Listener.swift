@@ -9,6 +9,8 @@ final class Listener: @unchecked Sendable {
     enum Event: Sendable {
         case ready
         case speaking
+        /// The words so far, while you are still talking.
+        case partial(String)
         case heard(String)
         case failed(String)
     }
@@ -18,6 +20,8 @@ final class Listener: @unchecked Sendable {
     static let silence: TimeInterval = 0.75
     /// Audio kept from just before the voice detector fires, so a first word is never clipped.
     static let preRoll: TimeInterval = 0.4
+    /// While you talk, the words so far are transcribed again after this much new audio.
+    static let partialEvery: TimeInterval = 0.2
 
     private let engine = AVAudioEngine()
     private let chunks: AsyncStream<[Float]>
@@ -49,6 +53,7 @@ final class Listener: @unchecked Sendable {
 
     /// Runs a 16 kHz mono WAV file through the same sentence cutting and
     /// transcription as the microphone, followed by two seconds of silence.
+    /// The words so far go to standard error, each sentence to the result.
     static func hear(file: URL) async throws -> [String] {
         let pipeline = try await Pipeline.load()
         let samples = try AudioConverter().resampleAudioFile(file) + [Float](repeating: 0, count: Int(2 * sampleRate))
@@ -59,7 +64,11 @@ final class Listener: @unchecked Sendable {
         feed.finish()
         let heard = Heard()
         try await pipeline.run(chunks) { event in
-            if case .heard(let text) = event { heard.append(text) }
+            switch event {
+            case .heard(let text): heard.append(text)
+            case .partial(let text): FileHandle.standardError.write(Data("partial: \(text)\n".utf8))
+            default: break
+            }
         }
         return heard.lines
     }
@@ -120,10 +129,12 @@ private struct Pipeline {
     func run(_ chunks: AsyncStream<[Float]>, onEvent: @Sendable (Listener.Event) -> Void) async throws {
         let config = VadSegmentationConfig(minSilenceDuration: Listener.silence)
         let preRollSamples = Int(Listener.preRoll * Listener.sampleRate)
+        let partialSamples = Int(Listener.partialEvery * Listener.sampleRate)
         var state = await vad.makeStreamState()
         var pending: [Float] = []
         var recent: [Float] = []
         var sentence: [Float]?
+        var partialAt = 0
 
         for await samples in chunks {
             pending += samples
@@ -140,6 +151,7 @@ private struct Pipeline {
                 }
                 if result.event?.isStart == true, sentence == nil {
                     sentence = recent
+                    partialAt = 0
                     onEvent(.speaking)
                 }
                 if result.event?.isEnd == true, let audio = sentence {
@@ -148,6 +160,12 @@ private struct Pipeline {
                     let text = try await transcribe(audio)
                     if !text.isEmpty { onEvent(.heard(text)) }
                 }
+            }
+            // The audio not yet seen by the voice detector follows the sentence directly.
+            if let audio = sentence, audio.count + pending.count - partialAt >= partialSamples {
+                partialAt = audio.count + pending.count
+                let text = try await transcribe(audio + pending)
+                if !text.isEmpty { onEvent(.partial(text)) }
             }
         }
         // The input ended while someone was still talking: what was said still counts.
