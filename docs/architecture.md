@@ -47,7 +47,9 @@ How devpal is built: the decisions so far.
 - The voice is Kokoro 82M through FluidAudio, on the Neural Engine.
 - A persona's `voice.json` picks its Kokoro voice. The plain persona speaks as `am_onyx`.
 - Each sentence is synthesized while the one before it plays.
-- Until there is echo cancellation, the microphone is muted while it speaks, and for 300 ms after.
+- The microphone and the voice share one audio engine with macOS voice processing on, which cancels most of its echo.
+- While it speaks, the listener learns how loud the leftover echo is. It stops only for words that are not its own and at least 2.5 times louder than that echo.
+- A sentence heard while it speaks, without stopping it, is its own echo and is never answered.
 - A voice can be trained from a sample, on the machine.
 
 ## Brain
@@ -56,5 +58,6 @@ How devpal is built: the decisions so far.
 - llama.cpp's server runs it on port 5276, started by the app and stopped when it quits. Its log is `~/.devpal/logs/brain.log`.
 - The model's instructions are the persona's `tone.md`, what it can do, and what it remembers.
 - It keeps its memory with two tools, remember and forget, offered once per answer.
+- A third tool, ask_machine, hands a question to Claude Code, run headless in the projects folder (`~/dev`, or `projects` in the machine's config) with read-only tools, on the user's own Claude login. It takes the `claude` on the PATH, or else the newest one the Claude desktop app keeps.
 - A full spoken answer takes about 1.3 seconds once the model is warm.
 - It hands a question on to Claude Code when it needs more, such as a project's docs or its agents, on each user's own Claude login.

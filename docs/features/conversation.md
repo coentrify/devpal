@@ -13,23 +13,28 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 - It answers out loud once you have been silent for a moment.
 - It speaks each sentence as soon as it is ready.
-- While it speaks, it does not listen, so it never hears itself.
+- When you talk while it speaks, it stops and listens.
+- Its own voice coming back through the microphone never stops it, and it never answers it.
 
-## Wake Words And Interrupting (Not Yet Implemented)
+## Wake Words (Not Yet Implemented)
 
 - When you say its wake words and a sentence, it answers out loud.
 - After its answer, you go on talking without its wake words, until 30 seconds of silence.
 - Within a second after you stop talking, it shows it is thinking.
-- When you talk while it speaks, it stops and listens.
 
 ## Character
 
 - It answers in its persona's character, in a sentence or two.
 - It knows what it can and cannot do, and says so when asked.
 
-## Projects (Not Yet Implemented)
+## Projects
 
-- When you ask about a project it knows, it explains it from that project's docs as they are today.
+- When you ask about a project on the machine, it looks it up in that project's files and docs as they are today, read-only.
+- While it looks something up, it says so.
+
+## Agents (Not Yet Implemented)
+
+- It talks to the agents working on the projects.
 
 ## Memory
 
