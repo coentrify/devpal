@@ -1,0 +1,31 @@
+{
+  "name": "devpal",
+  "version": "0.0.0",
+  "description": "A talking companion that lives on a dev machine's screen.",
+  "scripts": {
+    "test:tools": "node --test tools/coentrify/*.test.mjs",
+    "check:coentrify": "coentrify check",
+    "check:coentrify-json": "node tools/coentrify/coentrify-json-check.mjs",
+    "check:coentrify-json:staged": "node tools/coentrify/coentrify-json-check.mjs --staged",
+    "check:attribution": "node tools/coentrify/attribution-check.mjs",
+    "check": "npm run test:tools && npm run check:coentrify-json",
+    "append:healing": "node tools/coentrify/healing-append.mjs",
+    "install:hooks": "git config core.hooksPath .githooks",
+    "hooks:session-start": "npm install --no-audit --no-fund --silent && npm run install:hooks && npm run check:coentrify",
+    "hooks:refuse-wrap-up-questions": "node tools/coentrify/refuse-wrap-up-questions.mjs",
+    "hooks:pre-commit": "npm run check:coentrify-json:staged",
+    "hooks:commit-msg": "npm run --silent check:attribution --",
+    "hooks:pre-push": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coentrify/devpal.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://github.com/coentrify/devpal#readme",
+  "devDependencies": {
+    "coentrify": "^0.3.13"
+  },
+  "private": true
+}

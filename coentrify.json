@@ -1,0 +1,115 @@
+{
+  "source": "https://github.com/coentrify/coentrify",
+  "package": "coentrify",
+  "version": "0.3.13",
+  "folders": {
+    "docs": "docs",
+    "standards": "standards"
+  },
+  "workflow": "simple",
+  "records": [
+    "healing-log"
+  ],
+  "wiki": "none",
+  "healing": "automatic",
+  "update": "automatic",
+  "contributor": true,
+  "filing": "review",
+  "modules": {
+    "ai": {
+      "match-known-commands-deterministically-classify-the-rest": "tracked",
+      "prompt-small-models-differently": "tracked"
+    },
+    "behavior": {
+      "a-go-before-work-elsewhere": "tracked",
+      "a-maybe-is-a-trigger-to-investigate": "tracked",
+      "a-name-describes-its-unit": "tracked",
+      "a-quiet-tree-while-a-suite-runs": "tracked",
+      "always-make-no-mistakes": "tracked",
+      "always-verify-before-reporting-done": "tracked",
+      "always-work-from-a-plan": "tracked",
+      "anchor-edits-after-formatting": "tracked",
+      "backward-trace-missing-prerequisites": "tracked",
+      "code-review-compounds-into-patterns-and-sweeps": "tracked",
+      "communication-boundary": "tracked",
+      "dev-tiers": "tracked",
+      "docs-hold-only-what-the-director-decided": "tracked",
+      "dont-filter-data-without-a-spec": "tracked",
+      "dont-introduce-tech-debt": "tracked",
+      "feature-workflow": "tracked",
+      "file-a-change-with-coentrify": "tracked",
+      "flag-every-addition-of-your-own": "tracked",
+      "free-text-replies-no-buttons": "tracked",
+      "general-working-rules": "tracked",
+      "non-destructive-documenting-and-test-automation": "tracked",
+      "normal-dashes": "tracked",
+      "note-issues": "tracked",
+      "own-ports-own-processes": "tracked",
+      "project-lifecycle": "tracked",
+      "propagate-renames-and-convention-changes-everywhere": "tracked",
+      "prose-style": "tracked",
+      "prototype-mode-is-speed-first": "tracked",
+      "regular-layered-gap-analysis": "tracked",
+      "reload-the-standards-after-compacting": "tracked",
+      "review-changes-before-reporting-done": "tracked",
+      "review-every-capture-before-reporting": "tracked",
+      "standards-maintenance": "tracked",
+      "standards-over-skills": "tracked",
+      "sweeps-enumerate-into-tech-debt-first": "tracked",
+      "sync-the-docs-after-every-change": "tracked",
+      "the-quality-of-the-question": "tracked",
+      "things-of-one-kind-are-consistent": "tracked",
+      "understand-the-need": "tracked",
+      "use-us-english-everywhere": "tracked",
+      "verify-apis-against-docs-and-the-installed-artifact": "tracked",
+      "verify-control-before-rename": "tracked"
+    },
+    "commits": {
+      "a-turns-records-land-together": "tracked",
+      "commits": "tracked",
+      "gate-commits-on-exit-codes": "tracked",
+      "verify-staging-before-committing": "tracked"
+    },
+    "docs": {
+      "application-template": "tracked",
+      "docs-are-hierarchical-explicit-and-short": "tracked",
+      "docs-describe-behavior-not-wiring": "tracked",
+      "docs-folder-structure": "tracked",
+      "docs-state-knowledge": "tracked",
+      "documentation-philosophy": "tracked",
+      "feature-spec-template": "tracked",
+      "feature-template": "tracked",
+      "file-names": "tracked",
+      "glossary": "tracked",
+      "library-feedback": "tracked",
+      "no-faux-headers-in-lists": "tracked",
+      "ui-vocabulary": "tracked",
+      "workspace-levels": "tracked",
+      "workspace-suite": "tracked",
+      "workspace-template": "tracked"
+    },
+    "records": {
+      "healing-log": "tracked"
+    },
+    "scripts": {
+      "no-npx-in-scripts": "tracked",
+      "npm-script-naming": "tracked",
+      "thin-wrappers-in-ci-and-hooks": "tracked"
+    },
+    "security": {
+      "keep-personal-data-out-of-requests": "tracked",
+      "keep-secrets-away-from-agents": "tracked",
+      "never-access-the-keychain": "tracked"
+    },
+    "simple-workflow": {
+      "bugs-template": "tracked",
+      "plan-template": "tracked",
+      "plans-vs-persistent-files": "tracked",
+      "remove-completed-items-from-docs": "tracked",
+      "roadmap-template": "tracked",
+      "technical-debt-template": "tracked",
+      "the-simple-workflow": "tracked",
+      "todo-template": "tracked"
+    }
+  }
+}

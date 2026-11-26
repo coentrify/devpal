@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+
+# Personas made on a machine stay local. Only the plain persona is tracked.
+personas/*
+!personas/README.md
+!personas/plain/

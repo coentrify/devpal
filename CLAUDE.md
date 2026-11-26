@@ -1,0 +1,11 @@
+@AGENTS.md
+@standards/overview.md
+@standards/behavior/always-make-no-mistakes.md
+@standards/behavior/always-verify-before-reporting-done.md
+@standards/behavior/always-work-from-a-plan.md
+@standards/behavior/general-working-rules.md
+@standards/behavior/normal-dashes.md
+@standards/behavior/prose-style.md
+@standards/behavior/review-changes-before-reporting-done.md
+@standards/behavior/understand-the-need.md
+@standards/behavior/use-us-english-everywhere.md
