@@ -157,25 +157,38 @@ private struct Pipeline {
                 if result.event?.isEnd == true, let audio = sentence {
                     sentence = nil
                     recent = []
-                    let text = try await transcribe(audio)
+                    let text = await transcribeOrSkip(audio)
                     if !text.isEmpty { onEvent(.heard(text)) }
                 }
             }
             // The audio not yet seen by the voice detector follows the sentence directly.
             if let audio = sentence, audio.count + pending.count - partialAt >= partialSamples {
                 partialAt = audio.count + pending.count
-                let text = try await transcribe(audio + pending)
+                let text = await transcribeOrSkip(audio + pending)
                 if !text.isEmpty { onEvent(.partial(text)) }
             }
         }
         // The input ended while someone was still talking: what was said still counts.
         if let audio = sentence {
-            let text = try await transcribe(audio + pending)
+            let text = await transcribeOrSkip(audio + pending)
             if !text.isEmpty { onEvent(.heard(text)) }
         }
     }
 
+    /// A sentence that cannot be transcribed is skipped, so listening goes on.
+    private func transcribeOrSkip(_ audio: [Float]) async -> String {
+        do {
+            return try await transcribe(audio)
+        } catch {
+            FileHandle.standardError.write(Data("devpal: skipped a sentence: \(error)\n".utf8))
+            return ""
+        }
+    }
+
     private func transcribe(_ audio: [Float]) async throws -> String {
+        // The model needs a minimum length, and the start of a sentence can be shorter: silence fills it up.
+        let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: Int(Listener.sampleRate))
+        let audio = audio.count < minimum ? audio + [Float](repeating: 0, count: minimum - audio.count) : audio
         var decoder = try TdtDecoderState(decoderLayers: 2)
         let result = try await asr.transcribe(audio, decoderState: &decoder)
         if let boosting, let rescored = await boosting.rescore(text: result.text, tokenTimings: result.tokenTimings ?? [], audioSamples: audio) {

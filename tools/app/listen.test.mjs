@@ -37,3 +37,8 @@ test('a spoken sentence comes back as its words', { timeout: TIMEOUT }, () => {
 test('its own name is spelled as the word list spells it', { timeout: TIMEOUT }, () => {
   assert.match(hear('Devpal, report for duty.'), /\bDevpal\b/i)
 })
+
+test('after a short first sentence, the next one is heard too', { timeout: TIMEOUT }, () => {
+  const lines = hear('Hi. [[slnc 1000]] How are you doing today?').split('\n').map(words)
+  assert.deepEqual(lines, ['hi', 'how are you doing today'])
+})
