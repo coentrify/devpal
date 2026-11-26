@@ -20,6 +20,8 @@ struct Options {
     var to: URL?
     var ask: String?
     var memory = Memory.defaultFile
+    /// The folder that holds the projects Claude Code looks into.
+    var projects = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("dev")
 
     static let usage = """
     Usage: devpal [--background <name>] [--persona <name>] [--filter <name>]
@@ -35,6 +37,7 @@ struct Options {
         var background: String?
         var persona: String?
         var filter: String?
+        var projects: String?
     }
 
     static func parse(_ arguments: [String], config: URL = configFile) throws -> Options {
@@ -44,6 +47,7 @@ struct Options {
             options.background = chosen.background ?? options.background
             options.persona = chosen.persona ?? options.persona
             options.filter = chosen.filter ?? options.filter
+            if let projects = chosen.projects { options.projects = URL(fileURLWithPath: (projects as NSString).expandingTildeInPath) }
         }
         var rest = arguments[...]
         func value(_ flag: String) throws -> String {

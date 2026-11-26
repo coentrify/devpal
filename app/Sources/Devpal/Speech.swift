@@ -6,12 +6,13 @@ import Foundation
 final class Speech: @unchecked Sendable {
     private let kokoro: KokoroAneManager
     private let voice: Persona.Voice
-    private let engine = AVAudioEngine()
+    private let engine: AVAudioEngine
     private let player = AVAudioPlayerNode()
     private let format = AVAudioFormat(standardFormatWithSampleRate: Double(KokoroAneConstants.sampleRate), channels: 1)!
 
-    init(voice: Persona.Voice) {
+    init(voice: Persona.Voice, engine: AVAudioEngine = AVAudioEngine()) {
         self.voice = voice
+        self.engine = engine
         kokoro = KokoroAneManager(defaultVoice: voice.voice, version: .v3)
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: format)
@@ -36,6 +37,11 @@ final class Speech: @unchecked Sendable {
             player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { _ in done.resume() }
             if !player.isPlaying { player.play() }
         }
+    }
+
+    /// Stops speaking at once. What was still to play is dropped.
+    func stop() {
+        player.stop()
     }
 
     /// Writes samples to a 16-bit WAV file.

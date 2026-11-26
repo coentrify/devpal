@@ -21,7 +21,7 @@ if let text = options.say {
 }
 
 if let text = options.ask {
-    let brain = Brain(tone: (try? Persona(folder: options.layers.persona).tone) ?? "", memory: Memory(file: options.memory))
+    let brain = Brain(tone: (try? Persona(folder: options.layers.persona).tone) ?? "", memory: Memory(file: options.memory), machine: Machine(projects: options.projects))
     do {
         try await brain.start()
         for try await piece in brain.reply(to: text) { print(piece, terminator: "") }

@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import MetalKit
 
@@ -19,8 +20,21 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private var speech: Speech?
     private var canTalk = false
     private var talking = false
-    /// After it speaks, the room settles this long before it listens again.
-    static let echoTail: Duration = .milliseconds(300)
+    /// The microphone and the voice share one engine, so echo cancellation knows what is playing.
+    private let audio = AVAudioEngine()
+    private var answering: Task<Void, Never>?
+    private var answerID = 0
+    /// What it said in its last answer, to tell its own echo from you.
+    private var said: Set<String> = []
+    private var quietSince = Date.distantPast
+    /// Words heard this soon after it stops speaking may still be its own echo.
+    static let echoTail: TimeInterval = 2.5
+    /// Set when you stop it, so what you say next is answered.
+    private var youInterrupted = false
+    /// Heard words are its own echo when at least this share of them is what it just said.
+    static let echoShare = 0.5
+    /// It stops for you once it hears this many words of yours.
+    static let interruptWords = 2
 
     init(options: Options) {
         self.options = options
@@ -69,8 +83,8 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             report("cannot talk: \(error)")
             return
         }
-        let brain = Brain(tone: persona.tone, memory: Memory(file: options.memory))
-        let speech = Speech(voice: persona.voice)
+        let brain = Brain(tone: persona.tone, memory: Memory(file: options.memory), machine: Machine(projects: options.projects))
+        let speech = Speech(voice: persona.voice, engine: audio)
         self.brain = brain
         self.speech = speech
         Task {
@@ -86,19 +100,23 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     /// Answers what you said, sentence by sentence: each is spoken and shown as soon as it is ready.
     private func answer(_ text: String) {
-        guard canTalk, !talking, let brain, let speech else { return }
+        guard canTalk, let brain, let speech else { return }
+        interrupt()
         talking = true
-        listener?.muted = true
-        Task {
+        said = []
+        let id = answerID
+        answering = Task {
             var cutter = Sentences()
             var spoken: Task<Void, Never>?
-            func speak(_ sentence: String) {
+            @MainActor func speak(_ sentence: String) {
+                said.formUnion(Self.words(sentence))
                 let samples = Task { try? await speech.synthesize(sentence) }
                 let before = spoken
                 spoken = Task { @MainActor in
                     await before?.value
-                    guard let samples = await samples.value else { return }
+                    guard let samples = await samples.value, id == answerID else { return }
                     show(.persona(sentence), for: nil)
+                    listener?.companionSpeaking = true
                     try? await speech.play(samples)
                 }
             }
@@ -107,15 +125,41 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
                     for sentence in cutter.add(piece) { speak(sentence) }
                 }
                 if let last = cutter.rest() { speak(last) }
+            } catch is CancellationError {
             } catch {
-                report("cannot answer: \(error)")
+                if id == answerID { report("cannot answer: \(error)") }
             }
             await spoken?.value
-            try? await Task.sleep(for: Self.echoTail)
+            guard id == answerID else { return }
             if case .persona = screen?.subtitle.who { show(screen!.subtitle, for: Self.subtitleSeconds) }
-            listener?.muted = false
             talking = false
+            listener?.companionSpeaking = false
+            quietSince = Date()
         }
+    }
+
+    /// Stops the answer at once: no more text, no more speech.
+    private func interrupt() {
+        if talking { trace("interrupted") }
+        answerID += 1
+        answering?.cancel()
+        answering = nil
+        speech?.stop()
+        if talking { quietSince = Date() }
+        talking = false
+        listener?.companionSpeaking = false
+    }
+
+    /// Words heard while it speaks, or just after, that are mostly what it said are its own echo.
+    private func isEcho(_ text: String) -> Bool {
+        guard talking || Date().timeIntervalSince(quietSince) < Self.echoTail else { return false }
+        let heard = Self.words(text)
+        guard !heard.isEmpty else { return true }
+        return Double(heard.intersection(said).count) / Double(heard.count) >= Self.echoShare
+    }
+
+    nonisolated private static func words(_ text: String) -> Set<String> {
+        Set(text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
     }
 
     private func report(_ message: String) {
@@ -125,19 +169,41 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
 
     private func startListening() {
         show(.status("Loading speech recognition..."), for: nil)
-        let listener = Listener { [weak self] event in
+        let listener = Listener(engine: audio) { [weak self] event in
             Task { @MainActor in self?.handle(event) }
         }
         listener.start()
         self.listener = listener
     }
 
+    /// With DEVPAL_DEBUG=1, what it hears and does goes to standard error, and nowhere else.
+    private static let debug = ProcessInfo.processInfo.environment["DEVPAL_DEBUG"] == "1"
+
+    private func trace(_ message: @autoclosure () -> String) {
+        if Self.debug { FileHandle.standardError.write(Data("devpal debug: \(message())\n".utf8)) }
+    }
+
     private func handle(_ event: Listener.Event) {
+        trace("\(event) talking=\(talking) echo=\(isEcho("\(event)"))")
         switch event {
         case .ready: show(.status("Listening"), for: 2)
-        case .speaking: show(.you("..."), for: nil)
-        case .partial(let text): show(.you(text + " ..."), for: nil)
+        case .speaking:
+            if !talking { show(.you("..."), for: nil) }
+        case .partial(let text):
+            if talking {
+                // It stops for you once your words are clear and louder than its own echo.
+                guard !isEcho(text), Self.words(text).count >= Self.interruptWords, listener?.louderThanEcho == true else { return }
+                interrupt()
+                youInterrupted = true
+            } else if !youInterrupted, isEcho(text) {
+                return
+            }
+            show(.you(text + " ..."), for: nil)
         case .heard(let text):
+            // While it speaks, only what stopped it is you: the rest is its own echo.
+            if talking { return }
+            if !youInterrupted, isEcho(text) { return }
+            youInterrupted = false
             show(.you(text), for: Self.subtitleSeconds)
             answer(text)
         case .failed(let reason): report("cannot listen: \(reason)")

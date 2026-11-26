@@ -20,11 +20,13 @@ final class Brain: @unchecked Sendable {
     private let lock = NSLock()
     private var history: [[String: Any]] = []
     private let memory: Memory
+    private let machine: Machine?
     private var base: URL { URL(string: "http://127.0.0.1:\(Self.port)")! }
 
-    init(tone: String, memory: Memory = Memory(), model: URL = Brain.defaultModel) {
+    init(tone: String, memory: Memory = Memory(), machine: Machine? = nil, model: URL = Brain.defaultModel) {
         self.tone = tone
         self.memory = memory
+        self.machine = machine
         self.model = model
     }
 
@@ -75,9 +77,14 @@ final class Brain: @unchecked Sendable {
                             continuation.yield(piece)
                         }
                         guard !step.calls.isEmpty else { break }
+                        // Looking something up takes a while, so it says so first.
+                        if step.text.isEmpty, step.calls.contains(where: { $0.name == "ask_machine" }) {
+                            said += Self.checking + " "
+                            continuation.yield(Self.checking + " ")
+                        }
                         messages.append(["role": "assistant", "content": step.text, "tool_calls": step.calls.map(\.json)])
                         for call in step.calls {
-                            messages.append(["role": "tool", "tool_call_id": call.id, "content": self.run(call)])
+                            messages.append(["role": "tool", "tool_call_id": call.id, "content": await self.run(call)])
                         }
                     }
                     self.lock.withLock { self.history.append(["role": "assistant", "content": said]) }
@@ -114,7 +121,7 @@ final class Brain: @unchecked Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         var body: [String: Any] = [
             "messages": [["role": "system", "content": instructions()]] + messages,
-            "stream": true, "temperature": 0.7, "max_tokens": Self.maxTokens,
+            "stream": true, "temperature": tools ? Self.toolTemperature : 0.7, "max_tokens": Self.maxTokens,
         ]
         if tools { body["tools"] = Self.tools }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -142,9 +149,12 @@ final class Brain: @unchecked Sendable {
         return (text, calls.keys.sorted().compactMap { calls[$0] })
     }
 
-    private func run(_ call: Call) -> String {
+    private func run(_ call: Call) async -> String {
         let arguments = (try? JSONSerialization.jsonObject(with: Data(call.arguments.utf8))) as? [String: Any]
         switch call.name {
+        case "ask_machine":
+            guard let machine else { return "Looking things up is off." }
+            return await machine.ask(arguments?["question"] as? String ?? "")
         case "remember": return memory.remember(arguments?["fact"] as? String ?? "")
         case "forget": return memory.forget(arguments?["fact"] as? String ?? "")
         default: return "No such tool."
@@ -164,20 +174,36 @@ final class Brain: @unchecked Sendable {
         words they say, and answer out loud, with your words shown as subtitles. You run entirely on their \
         machine: your brain is a small language model, Qwen3 4B, your voice is Kokoro, and your hearing is \
         Parakeet. You keep a memory on this machine, and you remember the last few exchanges of this \
-        conversation. What you cannot do yet: look into the projects, their files, their wikis or their agents, \
-        browse the web, or be interrupted while you speak.
+        conversation. You stop talking when the developer starts. To learn anything about the projects on this \
+        machine, their files, docs, wikis or progress, call ask_machine: Claude Code looks it up for you, \
+        read-only, which takes a little while. What you cannot do yet: change anything in the projects, talk to \
+        the agents working on them, or browse the web.
         """
+
+    /// Said while Claude Code looks something up.
+    static let checking = "Checking."
+
 
     static let memoryRules = """
         You have a memory on this machine. When the developer tells you something worth keeping, or asks you to \
         remember or learn something, call remember with one short fact. When they ask you to forget something, \
-        call forget with that fact, copied from what you remember. Then confirm in a few words. Answer from what you remember \
+        call forget with that fact, copied from what you remember. Only the tools keep or drop a fact: never \
+        say you remembered or forgot something without calling the tool. Then confirm in a few words. Answer from what you remember \
         when it helps.
         """
 
     static let toolRounds = 2
+    /// Lower while tools are on offer, so a request to remember is acted on, not only answered.
+    static let toolTemperature = 0.3
 
     static var tools: [[String: Any]] { [
+        ["type": "function", "function": [
+            "name": "ask_machine",
+            "description": "Ask Claude Code about the projects on this machine: their files, docs, wikis and progress.",
+            "parameters": ["type": "object", "properties": [
+                "question": ["type": "string", "description": "The question, complete and self-contained."],
+            ], "required": ["question"]],
+        ]],
         ["type": "function", "function": [
             "name": "remember",
             "description": "Keep a fact in memory for later conversations.",

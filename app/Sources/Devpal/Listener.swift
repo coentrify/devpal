@@ -23,30 +23,35 @@ final class Listener: @unchecked Sendable {
     /// While you talk, the words so far are transcribed again after this much new audio.
     static let partialEvery: TimeInterval = 0.2
 
-    private let engine = AVAudioEngine()
+    private let engine: AVAudioEngine
+    private let levels = Levels()
+
+    /// Set while the companion speaks, so the listener learns how loud its own echo is.
+    var companionSpeaking: Bool {
+        get { levels.companionSpeaking }
+        set { levels.companionSpeaking = newValue }
+    }
+
+    /// Whether the last moment of sound is clearly louder than the companion's own echo: a person talking.
+    var louderThanEcho: Bool { levels.louderThanEcho }
     private let chunks: AsyncStream<[Float]>
     private let feed: AsyncStream<[Float]>.Continuation
     private let onEvent: @Sendable (Event) -> Void
     private var worker: Task<Void, Never>?
-    private let gate = Gate()
 
-    /// While muted, the microphone is ignored, so the companion does not hear itself speak.
-    var muted: Bool {
-        get { gate.muted }
-        set { gate.muted = newValue }
-    }
-
-    init(onEvent: @escaping @Sendable (Event) -> Void) {
+    /// The engine is shared with the voice, so echo cancellation knows what is playing.
+    init(engine: AVAudioEngine = AVAudioEngine(), onEvent: @escaping @Sendable (Event) -> Void) {
+        self.engine = engine
         (chunks, feed) = AsyncStream.makeStream(of: [Float].self)
         self.onEvent = onEvent
     }
 
     func start() {
-        worker = Task.detached { [chunks, onEvent] in
+        worker = Task.detached { [chunks, onEvent, levels] in
             do {
                 let pipeline = try await Pipeline.load()
                 onEvent(.ready)
-                try await pipeline.run(chunks, onEvent: onEvent)
+                try await pipeline.run(chunks, levels: levels, onEvent: onEvent)
             } catch {
                 onEvent(.failed("\(error)"))
             }
@@ -70,7 +75,7 @@ final class Listener: @unchecked Sendable {
         }
         feed.finish()
         let heard = Heard()
-        try await pipeline.run(chunks) { event in
+        try await pipeline.run(chunks, levels: Levels()) { event in
             switch event {
             case .heard(let text): heard.append(text)
             case .partial(let text): FileHandle.standardError.write(Data("partial: \(text)\n".utf8))
@@ -88,15 +93,22 @@ final class Listener: @unchecked Sendable {
 
     private func startMicrophone() throws {
         let input = engine.inputNode
+        // macOS voice processing cancels the echo of what the engine plays, and leaves other sound alone.
+        try input.setVoiceProcessingEnabled(true)
+        input.voiceProcessingOtherAudioDuckingConfiguration = .init(enableAdvancedDucking: false, duckingLevel: .min)
         let inputFormat = input.outputFormat(forBus: 0)
-        guard let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Self.sampleRate, channels: 1, interleaved: false),
-              let converter = AVAudioConverter(from: inputFormat, to: target) else {
+        // With voice processing on, the input has several channels: the first is the cleaned voice.
+        guard let mono = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: inputFormat.sampleRate, channels: 1, interleaved: false),
+              let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Self.sampleRate, channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: mono, to: target) else {
             throw ListenerError.noAudioFormat
         }
         let feed = self.feed
-        let gate = self.gate
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { buffer, _ in
-            guard !gate.muted else { return }
+            guard let first = buffer.floatChannelData?[0],
+                  let voice = AVAudioPCMBuffer(pcmFormat: mono, frameCapacity: buffer.frameLength) else { return }
+            voice.frameLength = buffer.frameLength
+            voice.floatChannelData![0].update(from: first, count: Int(buffer.frameLength))
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * Self.sampleRate / inputFormat.sampleRate) + 32
             guard let converted = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
             var consumed = false
@@ -107,7 +119,7 @@ final class Listener: @unchecked Sendable {
                 }
                 consumed = true
                 status.pointee = .haveData
-                return buffer
+                return voice
             }
             guard let channel = converted.floatChannelData?[0], converted.frameLength > 0 else { return }
             feed.yield(Array(UnsafeBufferPointer(start: channel, count: Int(converted.frameLength))))
@@ -135,7 +147,7 @@ private struct Pipeline {
         return Pipeline(vad: vad, asr: asr, boosting: boosting)
     }
 
-    func run(_ chunks: AsyncStream<[Float]>, onEvent: @Sendable (Listener.Event) -> Void) async throws {
+    func run(_ chunks: AsyncStream<[Float]>, levels: Levels, onEvent: @Sendable (Listener.Event) -> Void) async throws {
         let config = VadSegmentationConfig(minSilenceDuration: Listener.silence)
         let preRollSamples = Int(Listener.preRoll * Listener.sampleRate)
         let partialSamples = Int(Listener.partialEvery * Listener.sampleRate)
@@ -150,6 +162,7 @@ private struct Pipeline {
             while pending.count >= VadManager.chunkSize {
                 let chunk = Array(pending.prefix(VadManager.chunkSize))
                 pending.removeFirst(VadManager.chunkSize)
+                levels.add(chunk)
                 let result = try await vad.processStreamingChunk(chunk, state: state, config: config)
                 state = result.state
 
@@ -207,12 +220,33 @@ private struct Pipeline {
     }
 }
 
-private final class Gate: @unchecked Sendable {
+/// How loud the microphone is, and how loud the companion's own echo is while it speaks.
+final class Levels: @unchecked Sendable {
+    /// A person talking is at least this many times louder than the echo.
+    static let voiceOverEcho: Float = 2.5
+    /// And never quieter than this, whatever the echo.
+    static let quietestVoice: Float = 0.004
+
     private let lock = NSLock()
-    private var value = false
-    var muted: Bool {
-        get { lock.withLock { value } }
-        set { lock.withLock { value = newValue } }
+    private var speaking = false
+    private var echo: Float = 0
+    private var recent: [Float] = []
+
+    var companionSpeaking: Bool {
+        get { lock.withLock { speaking } }
+        set { lock.withLock { speaking = newValue } }
+    }
+
+    var louderThanEcho: Bool {
+        lock.withLock { (recent.max() ?? 0) > max(echo * Self.voiceOverEcho, Self.quietestVoice) }
+    }
+
+    func add(_ chunk: [Float]) {
+        let rms = (chunk.reduce(0) { $0 + $1 * $1 } / Float(max(chunk.count, 1))).squareRoot()
+        lock.withLock {
+            recent = Array((recent + [rms]).suffix(2))
+            if speaking { echo = echo == 0 ? rms : 0.9 * echo + 0.1 * rms }
+        }
     }
 }
 
