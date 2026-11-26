@@ -47,9 +47,9 @@ How devpal is built: the decisions so far.
 - The voice is Kokoro 82M through FluidAudio, on the Neural Engine.
 - A persona's `voice.json` picks its Kokoro voice. The plain persona speaks as `am_onyx`.
 - Each sentence is synthesized while the one before it plays.
-- The microphone and the voice share one audio engine with macOS voice processing on, which cancels most of its echo.
-- While it speaks, the listener learns how loud the leftover echo is. It stops only for words that are not its own and at least 2.5 times louder than that echo.
-- A sentence heard while it speaks, without stopping it, is its own echo and is never answered.
+- The microphone and the voice share one audio engine with macOS voice processing on. With the microphone and the speaker on separate devices, it cancels only part of the echo.
+- So while it speaks, it acts only on stop words in what it hears. Half a second after it stops, everything heard while it spoke is dropped, and listening starts fresh.
+- A persona's `replies.json` holds fixed replies to known phrases, matched word for word before the model.
 - A voice can be trained from a sample, on the machine.
 
 ## Brain
@@ -57,7 +57,8 @@ How devpal is built: the decisions so far.
 - The talk model is Qwen3 4B Instruct 2507, quantized to Q4_K_M, in `~/.devpal/models`.
 - llama.cpp's server runs it on port 5276, started by the app and stopped when it quits. Its log is `~/.devpal/logs/brain.log`.
 - The model's instructions are the persona's `tone.md`, what it can do, and what it remembers.
-- It keeps its memory with two tools, remember and forget, offered once per answer.
+- Remember, don't forget, learn and forget are matched in code before the model, and act on the memory directly. For other phrasings, the model keeps its memory with two tools, remember and forget, offered once per answer.
 - A third tool, ask_machine, hands a question to Claude Code, run headless in the projects folder (`~/dev`, or `projects` in the machine's config) with read-only tools, on the user's own Claude login. It takes the `claude` on the PATH, or else the newest one the Claude desktop app keeps.
 - A full spoken answer takes about 1.3 seconds once the model is warm.
+- An answer is one short sentence, capped at 60 tokens, with a repeat penalty of 1.15.
 - It hands a question on to Claude Code when it needs more, such as a project's docs or its agents, on each user's own Claude login.

@@ -8,6 +8,7 @@ A persona is the companion's character: its name, wake words, look, voice and wa
 - A persona is a folder of its own, so it is reused with any background and any filter.
 - Its image needs no more than an idle still, an asleep still and 3 to 5 speaking stills.
 - Its tone sets its way of speaking: its style, its focus and what it talks about.
+- It can have fixed replies to known phrases, said the same every time.
 - The package ships with a plain persona, so the companion runs before anyone makes one.
 
 ## The Plain Persona (Not Yet Implemented)

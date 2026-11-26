@@ -13,7 +13,7 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 - It answers out loud once you have been silent for a moment.
 - It speaks each sentence as soon as it is ready.
-- When you talk while it speaks, it stops and listens.
+- While it speaks, it hears only stop words, such as stop, wait or hold on: one stops it at once, and it listens.
 - Its own voice coming back through the microphone never stops it, and it never answers it.
 
 ## Wake Words (Not Yet Implemented)
@@ -24,13 +24,16 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 ## Character
 
-- It answers in its persona's character, in a sentence or two.
+- It answers in its persona's character, in a sentence or two, without repeating itself.
+- Known phrases get the persona's fixed reply, the same every time.
 - It knows what it can and cannot do, and says so when asked.
 
 ## Projects
 
 - When you ask about a project on the machine, it looks it up in that project's files and docs as they are today, read-only.
+- It never guesses about a project, and never only offers to look something up.
 - While it looks something up, it says so.
+- When looking something up fails, it says why.
 
 ## Agents (Not Yet Implemented)
 
