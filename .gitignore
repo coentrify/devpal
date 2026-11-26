@@ -5,3 +5,5 @@ node_modules/
 personas/*
 !personas/README.md
 !personas/plain/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

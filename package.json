@@ -3,12 +3,14 @@
   "version": "0.0.0",
   "description": "A talking companion that lives on a dev machine's screen.",
   "scripts": {
+    "start:wiki": "vitepress dev docs --port 5274",
+    "build:wiki": "vitepress build docs",
     "test:tools": "node --test tools/coentrify/*.test.mjs",
     "check:coentrify": "coentrify check",
     "check:coentrify-json": "node tools/coentrify/coentrify-json-check.mjs",
     "check:coentrify-json:staged": "node tools/coentrify/coentrify-json-check.mjs --staged",
     "check:attribution": "node tools/coentrify/attribution-check.mjs",
-    "check": "npm run test:tools && npm run check:coentrify-json",
+    "check": "npm run test:tools && npm run check:coentrify-json && npm run build:wiki",
     "append:healing": "node tools/coentrify/healing-append.mjs",
     "install:hooks": "git config core.hooksPath .githooks",
     "hooks:session-start": "npm install --no-audit --no-fund --silent && npm run install:hooks && npm run check:coentrify",
@@ -25,7 +27,8 @@
   "type": "module",
   "homepage": "https://github.com/coentrify/devpal#readme",
   "devDependencies": {
-    "coentrify": "^0.3.13"
+    "coentrify": "^0.3.13",
+    "vitepress": "^1.6.4"
   },
   "private": true
 }

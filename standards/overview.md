@@ -28,3 +28,4 @@ Every module has an overview of its own standards.
 - [Scripts](scripts/overview.md) - npm scripts
 - [Security](security/overview.md) - hard boundaries
 - [Simple Workflow](simple-workflow/overview.md) - the work tracked in flat lists
+- [Tooling](tooling/overview.md) - development tools

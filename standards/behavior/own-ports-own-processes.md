@@ -32,4 +32,5 @@ A pattern kill that looks local can hit a process of the director's that runs th
 
 ## Related
 
+- [VitePress Wiki](../tooling/vitepress-wiki.md)
 - [General Working Rules](general-working-rules.md)

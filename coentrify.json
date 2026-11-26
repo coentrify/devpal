@@ -10,7 +10,7 @@
   "records": [
     "healing-log"
   ],
-  "wiki": "none",
+  "wiki": "vitepress",
   "healing": "automatic",
   "update": "automatic",
   "contributor": true,
@@ -110,6 +110,9 @@
       "technical-debt-template": "tracked",
       "the-simple-workflow": "tracked",
       "todo-template": "tracked"
+    },
+    "tooling": {
+      "vitepress-wiki": "tracked"
     }
   }
 }

@@ -24,7 +24,7 @@ A hierarchy gives every page the right focus level, for efficient and effective 
 
 - A thing whose items have pages of their own is a folder: its `overview.md` is the thing's own page and every item's page sits beside it, never a page standing outside the folder of its name. A simple thing stays a single file.
 - The same holds one level up: a group's index page is its folder's `overview.md`.
-- The wiki's sidebar follows the folders.
+- The wiki's sidebar follows the folders ([VitePress Wiki](../tooling/vitepress-wiki.md)).
 
 ## Writing
 
@@ -45,3 +45,4 @@ A hierarchy gives every page the right focus level, for efficient and effective 
 - [Docs Describe Behavior, Not Wiring](docs-describe-behavior-not-wiring.md)
 - [Feature Template](feature-template.md)
 - [Docs State Knowledge](docs-state-knowledge.md)
+- [VitePress Wiki](../tooling/vitepress-wiki.md)
