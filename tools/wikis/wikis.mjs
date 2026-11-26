@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Serves every project's wiki on the home network, each on a name of its own:
-// the addix wiki on addix.local. A project has a wiki when it has docs/.vitepress.
+// the addix wiki on addix.local. A project has a wiki when it has a .vitepress folder, in docs or at its root.
 //
 //   node tools/wikis/wikis.mjs serve [--port 80] [--projects ~/dev]
 //   node tools/wikis/wikis.mjs install    starts it with the Mac, and keeps it running
@@ -41,6 +41,13 @@ export function hostName(project) {
   return project.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
+/// Where a project's wiki config lives, the folder vitepress builds: docs, the root, or null for none.
+export function wikiSource(folder) {
+  if (fs.existsSync(path.join(folder, 'docs', '.vitepress'))) return 'docs'
+  if (fs.existsSync(path.join(folder, '.vitepress'))) return '.'
+  return null
+}
+
 /// The projects with a wiki, by name: the name the config gives it, else its folder name.
 export function findWikis(root, chosen = {}) {
   let entries = []
@@ -50,9 +57,9 @@ export function findWikis(root, chosen = {}) {
     return []
   }
   return entries
-    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(root, entry.name, 'docs', '.vitepress')))
-    .map((entry) => ({ name: hostName(chosen[entry.name] ?? entry.name), folder: path.join(root, entry.name) }))
-    .filter((wiki) => wiki.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => ({ name: hostName(chosen[entry.name] ?? entry.name), folder: path.join(root, entry.name), source: wikiSource(path.join(root, entry.name)) }))
+    .filter((wiki) => wiki.name && wiki.source)
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -158,7 +165,7 @@ function build(wiki, out) {
     const next = `${target}.next`
     fs.rmSync(next, { recursive: true, force: true })
     const started = Date.now()
-    const child = spawn(vitepress, ['build', 'docs', '--outDir', next], { cwd: wiki.folder, stdio: ['ignore', 'ignore', 'pipe'] })
+    const child = spawn(vitepress, ['build', wiki.source, '--outDir', next], { cwd: wiki.folder, stdio: ['ignore', 'ignore', 'pipe'] })
     let errors = ''
     child.stderr.on('data', (chunk) => (errors += chunk))
     child.on('close', (code) => {
@@ -178,7 +185,7 @@ function build(wiki, out) {
 /// Rebuilds a wiki when its pages or its config change, a moment after the last change.
 function watch(wiki, rebuild) {
   let timer
-  const skip = /(^|\/)(node_modules|\.git|\.temp|cache|dist)(\/|$)/
+  const skip = /(^|\/)(node_modules|\.git|\.claude|\.temp|cache|dist)(\/|$)/
   return fs.watch(wiki.folder, { recursive: true }, (_, file) => {
     // A build writes its own temp files and a stamped copy of the config: those are no change.
     if (!file || skip.test(file) || file.includes('.timestamp-')) return

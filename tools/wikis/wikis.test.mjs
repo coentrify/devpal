@@ -13,12 +13,14 @@ function write(file, text = '') {
   fs.writeFileSync(file, text)
 }
 
-test('a project has a wiki when it has docs/.vitepress', () => {
+test('a project has a wiki when it has a .vitepress folder, in docs or at its root', () => {
   const root = scratch()
   fs.mkdirSync(path.join(root, 'addix', 'docs', '.vitepress'), { recursive: true })
-  fs.mkdirSync(path.join(root, 'johnny-cyberquest', 'docs'), { recursive: true })
+  fs.mkdirSync(path.join(root, 'johnny-cyberquest', '.vitepress'), { recursive: true })
+  fs.mkdirSync(path.join(root, 'numb', 'docs'), { recursive: true })
   fs.mkdirSync(path.join(root, 'Cult Of Personality', 'docs', '.vitepress'), { recursive: true })
-  assert.deepEqual(findWikis(root).map((w) => w.name), ['addix', 'cult-of-personality'])
+  const found = findWikis(root).map((w) => [w.name, w.source])
+  assert.deepEqual(found, [['addix', 'docs'], ['cult-of-personality', 'docs'], ['johnny-cyberquest', '.']])
 })
 
 test('a missing projects folder has no wikis', () => {
