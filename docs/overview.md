@@ -17,6 +17,6 @@ A talking companion that lives on a dev machine's screen. It wakes when you talk
 
 ## Voice
 
-- Speech recognition and the voice are free tools, run on the machine.
+- Speech recognition, the voice and a small talk model are free tools, run on the machine.
 - Its voice is fast and good, and you can interrupt it.
 - The built-in system voices are left out, since a persona's voice is made to fit it.

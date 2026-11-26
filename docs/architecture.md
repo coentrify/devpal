@@ -2,6 +2,8 @@
 
 How devpal is built: the decisions so far.
 
+- Everything runs on the machine: listening, speaking and the brain. Only a question handed on to Claude Code leaves it.
+
 ## Package
 
 - On npm it is `devpal`, public like `coentrify`.
@@ -23,4 +25,5 @@ How devpal is built: the decisions so far.
 
 ## Brain
 
-- Its lines come from Claude Code, on each user's own Claude login, with its persona's character in the prompt and its projects' docs at hand.
+- A small talk model runs on the machine, fast enough to answer at once, with its persona's character in the prompt.
+- It hands a question on to Claude Code when it needs more, such as a project's docs or its agents, on each user's own Claude login.

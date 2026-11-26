@@ -5,6 +5,7 @@ Test and decide the basics before the companion is built.
 - Decide which computers it runs on (active)
 - Decide the vibe of a persona: its look, its flavors and its way of speaking
 - Test free speech recognition on the Mac mini for speed and quality
+- Test small talk models on the Mac mini for speed and character
 - Test free voices on the Mac mini for speed, quality and interruption
 - Test training a voice from recordings, on the machine
 - Test echo cancellation with the microphone beside the speaker
