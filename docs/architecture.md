@@ -23,6 +23,7 @@ How devpal is built: the decisions so far.
 - `~/.devpal/vocabulary.txt` holds the machine's special words.
 - `~/.devpal/memory.md` is what the companion has learned, one fact per line.
 - `~/.devpal/models` holds the talk model, and `~/.devpal/logs` the logs.
+- `~/.devpal/wikis` holds the built wikis the machine serves on port 80.
 - None of it leaves the machine or goes into version control.
 
 ## Package
@@ -83,3 +84,11 @@ How devpal is built: the decisions so far.
 - Cloning runs git over SSH. It searches the GitHub owners of the projects already on the machine, with the name joined by dashes, by nothing and by underscores.
 - After a clone, the new project's agent reads its docs and says what it is, and the project comes into focus.
 - A one-sentence question cost about $0.16 on the Claude account in testing.
+
+## Wikis
+
+- `npm run start:wikis` builds every project's VitePress wiki and serves them on port 80, picking the wiki by the name a request was sent to.
+- Each name is published over Bonjour with `dns-sd`, which ships with macOS, and again when the address changes.
+- A wiki rebuilds a moment after its pages change, beside the one being served, and is swapped in when the build succeeds.
+- `wikis` in `~/.devpal/config.json` renames a project's wiki by its folder name.
+- `npm run install:wikis` makes it a launch agent that starts with the Mac, and `npm run uninstall:wikis` removes it.

@@ -13,7 +13,9 @@
 - [Know What The Agents Work On](../features/agents.md)
 - [Show The Desktop, Captures And Wiki Pages By Voice](../features/show-on-screen.md)
 - [See You Through A Camera](../features/camera.md)
+- [Serve The Wikis On The Home Network](../features/wikis.md)
 - Publish The Wiki To GitHub Pages On `devpal.coentrify.com`
+- Put The Wikis Online From Main, Behind A Sign-In With Google, GitHub Or A Password, Such As Cloudflare Access
 
 ## Blocked
 
