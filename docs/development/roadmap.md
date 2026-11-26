@@ -20,3 +20,6 @@
 ## Waiting For Response
 
 ## Nice To Have
+
+- Animate The Persona By Emotion And Intent, Louder Or Softer, Angry Or Happy
+- Listen Word By Word, Prime Lookups As You Speak And Interrupt A Wrong Statement

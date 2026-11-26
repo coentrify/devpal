@@ -5,6 +5,7 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 ## Talking (Not Yet Implemented)
 
 - When you say its wake words and a sentence, it answers out loud.
+- It answers once you have been silent for a moment.
 - After its answer, you go on talking without its wake words, until 30 seconds of silence.
 - Within a second after you stop talking, it shows it is thinking.
 - It speaks each sentence as soon as it is ready.

@@ -18,8 +18,22 @@ The companion lives on a dev machine's screen, wakes when you talk to it, and sp
 ## Screen (Not Yet Implemented)
 
 - While awake, it fills its screen.
+- The screen stacks three layers: a background, the persona, and a filter in front of both.
+- Each layer is picked on its own, so any background, persona and filter go together.
 - While it is quiet, it shows its idle still.
 - While it speaks, its speaking stills rotate.
+- While it speaks, subtitles show what it says.
+
+## Backgrounds (Not Yet Implemented)
+
+- A background fills the screen behind the persona.
+- The package ships a synthwave background: a neon grid running to a striped setting sun.
+
+## Filters (Not Yet Implemented)
+
+- A filter lies over the whole screen, such as an old TV, a modern screen or black and white.
+- The package ships a retro CRT filter, with horizontal scan lines.
+- Now and then the CRT picture glitches: a line tears, the colors split, a frame jumps.
 
 ## Speaking (Not Yet Implemented)
 
