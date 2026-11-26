@@ -24,7 +24,8 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 
 ## Character
 
-- It answers in its persona's character.
+- It answers in its persona's character, in a sentence or two.
+- It knows what it can and cannot do, and says so when asked.
 
 ## Projects (Not Yet Implemented)
 
@@ -33,6 +34,10 @@ You talk with the companion out loud, and it answers in its persona's voice and 
 ## Memory
 
 - It remembers the last 10 exchanges of the conversation, until it restarts.
+- When you tell it something worth keeping, or ask it to remember or learn something, it keeps it in a memory on your machine.
+- When you ask it to forget something, it forgets it.
+- It answers from what it remembers.
+- Its memory is a plain list you can read and edit yourself.
 
 ## Memory Of The Day (Not Yet Implemented)
 

@@ -17,6 +17,14 @@ How devpal is built: the decisions so far.
 - A persona's image is a set of SVG stills in `personas/<name>/image/`.
 - `npm start` opens the window, and `--snapshot` renders one frame to a PNG for the tests.
 
+## Machine
+
+- `~/.devpal/config.json` picks the machine's persona, background and filter.
+- `~/.devpal/vocabulary.txt` holds the machine's special words.
+- `~/.devpal/memory.md` is what the companion has learned, one fact per line.
+- `~/.devpal/models` holds the talk model, and `~/.devpal/logs` the logs.
+- None of it leaves the machine or goes into version control.
+
 ## Package
 
 - On npm it is `devpal`, public like `coentrify`.
@@ -46,6 +54,7 @@ How devpal is built: the decisions so far.
 
 - The talk model is Qwen3 4B Instruct 2507, quantized to Q4_K_M, in `~/.devpal/models`.
 - llama.cpp's server runs it on port 5276, started by the app and stopped when it quits. Its log is `~/.devpal/logs/brain.log`.
-- A persona's `tone.md` is the model's instructions.
+- The model's instructions are the persona's `tone.md`, what it can do, and what it remembers.
+- It keeps its memory with two tools, remember and forget, offered once per answer.
 - A full spoken answer takes about 1.3 seconds once the model is warm.
 - It hands a question on to Claude Code when it needs more, such as a project's docs or its agents, on each user's own Claude login.
