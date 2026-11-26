@@ -24,6 +24,11 @@ final class Screen {
     private let filterPipeline: MTLRenderPipelineState
     private let still: MTLTexture
     private var scene: MTLTexture?
+    private var subtitleTexture: MTLTexture?
+    private var subtitleKey: (text: String, width: Int, height: Int)?
+
+    /// The line of dialogue on screen, or nothing.
+    var subtitle = ""
 
     init(layers: Layers, targetFormat: MTLPixelFormat) throws {
         guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
@@ -82,6 +87,13 @@ final class Screen {
             encoder.setVertexBytes(&frame, length: MemoryLayout<Frame>.stride, index: 0)
             encoder.setFragmentTexture(still, index: 0)
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            if let texture = subtitleTexture(width: target.width, height: target.height) {
+                var band = frame
+                band.personaRect = subtitleRect(texture, target)
+                encoder.setVertexBytes(&band, length: MemoryLayout<Frame>.stride, index: 0)
+                encoder.setFragmentTexture(texture, index: 0)
+                encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+            }
             encoder.endEncoding()
         }
 
@@ -103,6 +115,22 @@ final class Screen {
         let height = Self.personaHeight
         let width = height * Float(still.width) / Float(still.height) * Float(target.height) / Float(target.width)
         return SIMD4((1 - width) / 2, 1 - height + Self.personaSink, width, height)
+    }
+
+    /// The subtitles are centered, above the bottom edge, drawn before the filter so it lies over them too.
+    private func subtitleRect(_ texture: MTLTexture, _ target: MTLTexture) -> SIMD4<Float> {
+        let width = Float(texture.width) / Float(target.width)
+        let height = Float(texture.height) / Float(target.height)
+        return SIMD4((1 - width) / 2, 1 - Subtitles.margin - height, width, height)
+    }
+
+    private func subtitleTexture(width: Int, height: Int) -> MTLTexture? {
+        let text = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        if let key = subtitleKey, key.text == text, key.width == width, key.height == height { return subtitleTexture }
+        subtitleTexture = Subtitles.texture(text, screenWidth: width, screenHeight: height, device: device)
+        subtitleKey = (text, width, height)
+        return subtitleTexture
     }
 
     private func sceneTexture(width: Int, height: Int) -> MTLTexture {

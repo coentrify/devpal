@@ -12,10 +12,13 @@ struct Options {
     var height = 800
     var time: Float = 1.0
     var fullScreen = false
+    var listen = true
+    var subtitle = ""
+    var hear: URL?
 
     static let usage = """
     Usage: devpal [--background <name>] [--persona <name>] [--filter <name>]
-                  [--root <path>] [--full-screen]
+                  [--root <path>] [--full-screen] [--no-listen] [--subtitle <text>] [--hear <file.wav>]
                   [--snapshot <file.png> [--size <width>x<height>] [--time <seconds>]]
     """
 
@@ -34,6 +37,9 @@ struct Options {
             case "--filter": options.filter = try value(flag)
             case "--snapshot": options.snapshot = URL(fileURLWithPath: try value(flag))
             case "--full-screen": options.fullScreen = true
+            case "--no-listen": options.listen = false
+            case "--subtitle": options.subtitle = try value(flag)
+            case "--hear": options.hear = URL(fileURLWithPath: try value(flag))
             case "--time":
                 guard let time = Float(try value(flag)) else { throw OptionsError.badValue(flag) }
                 options.time = time

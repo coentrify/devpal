@@ -20,11 +20,11 @@ function pngSize(file) {
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }
 }
 
-test('a snapshot of the background, the persona and the filter is a PNG of the asked size', () => {
+test('a snapshot of the background, the persona, the filter and a subtitle is a PNG of the asked size', () => {
   const folder = mkdtempSync(join(tmpdir(), 'devpal-'))
   try {
     const file = join(folder, 'screen.png')
-    const result = run('--snapshot', file, '--size', '320x200')
+    const result = run('--snapshot', file, '--size', '320x200', '--subtitle', 'Sir, yes sir!')
     assert.equal(result.status, 0, result.stderr)
     assert.deepEqual(pngSize(file), { width: 320, height: 200 })
   } finally {

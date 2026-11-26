@@ -8,6 +8,15 @@ do {
     exit(2)
 }
 
+if let file = options.hear {
+    do {
+        for line in try await Listener.hear(file: file) { print(line) }
+    } catch {
+        fail(error)
+    }
+    exit(0)
+}
+
 if let file = options.snapshot {
     do {
         try Snapshot.write(options, to: file)
