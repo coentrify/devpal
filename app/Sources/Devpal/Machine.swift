@@ -45,6 +45,7 @@ final class Machine: @unchecked Sendable {
         timer.cancel()
         process.waitUntilExit()
         let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if answer.contains("Not logged in") { return "Looking it up failed: Claude Code is not signed in on this machine." }
         if process.terminationStatus != 0 || answer.isEmpty { return "Claude Code found no answer." }
         return answer
     }

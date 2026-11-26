@@ -18,23 +18,18 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
     private var clearSubtitle: DispatchWorkItem?
     private var brain: Brain?
     private var speech: Speech?
+    private var persona: Persona?
+    private var commands: Commands?
     private var canTalk = false
     private var talking = false
     /// The microphone and the voice share one engine, so echo cancellation knows what is playing.
     private let audio = AVAudioEngine()
     private var answering: Task<Void, Never>?
     private var answerID = 0
-    /// What it said in its last answer, to tell its own echo from you.
-    private var said: Set<String> = []
-    private var quietSince = Date.distantPast
-    /// Words heard this soon after it stops speaking may still be its own echo.
-    static let echoTail: TimeInterval = 2.5
-    /// Set when you stop it, so what you say next is answered.
-    private var youInterrupted = false
-    /// Heard words are its own echo when at least this share of them is what it just said.
-    static let echoShare = 0.5
-    /// It stops for you once it hears this many words of yours.
-    static let interruptWords = 2
+    /// After it speaks, the room settles this long before it listens again, so its echo is never taken for you.
+    static let echoTail: Duration = .milliseconds(500)
+    /// While it speaks it hears only these: saying one stops it at once.
+    static let stopWords: [[String]] = [["stop"], ["wait"], ["enough"], ["quiet"], ["pause"], ["hold", "on"], ["hang", "on"], ["shut", "up"]]
 
     init(options: Options) {
         self.options = options
@@ -83,7 +78,10 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             report("cannot talk: \(error)")
             return
         }
-        let brain = Brain(tone: persona.tone, memory: Memory(file: options.memory), machine: Machine(projects: options.projects))
+        self.persona = persona
+        let memory = Memory(file: options.memory)
+        commands = Commands(memory: memory)
+        let brain = Brain(tone: persona.tone, memory: memory, machine: Machine(projects: options.projects))
         let speech = Speech(voice: persona.voice, engine: audio)
         self.brain = brain
         self.speech = speech
@@ -103,25 +101,24 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         guard canTalk, let brain, let speech else { return }
         interrupt()
         talking = true
-        said = []
         let id = answerID
         answering = Task {
             var cutter = Sentences()
             var spoken: Task<Void, Never>?
             @MainActor func speak(_ sentence: String) {
-                said.formUnion(Self.words(sentence))
                 let samples = Task { try? await speech.synthesize(sentence) }
                 let before = spoken
                 spoken = Task { @MainActor in
                     await before?.value
                     guard let samples = await samples.value, id == answerID else { return }
                     show(.persona(sentence), for: nil)
-                    listener?.companionSpeaking = true
                     try? await speech.play(samples)
                 }
             }
             do {
-                for try await piece in brain.reply(to: text) {
+                let fixed = persona?.fixedReply(to: text) ?? commands?.run(text)
+                let reply = fixed.map(Self.just) ?? brain.reply(to: text)
+                for try await piece in reply {
                     for sentence in cutter.add(piece) { speak(sentence) }
                 }
                 if let last = cutter.rest() { speak(last) }
@@ -132,10 +129,16 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
             await spoken?.value
             guard id == answerID else { return }
             if case .persona = screen?.subtitle.who { show(screen!.subtitle, for: Self.subtitleSeconds) }
+            try? await Task.sleep(for: Self.echoTail)
+            guard id == answerID else { return }
+            // What was heard while it spoke is its own echo: it is dropped, and listening starts fresh.
+            listener?.discard()
             talking = false
-            listener?.companionSpeaking = false
-            quietSince = Date()
         }
+    }
+
+    private static func just(_ text: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { $0.yield(text); $0.finish() }
     }
 
     /// Stops the answer at once: no more text, no more speech.
@@ -145,21 +148,15 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
         answering?.cancel()
         answering = nil
         speech?.stop()
-        if talking { quietSince = Date() }
         talking = false
-        listener?.companionSpeaking = false
     }
 
-    /// Words heard while it speaks, or just after, that are mostly what it said are its own echo.
-    private func isEcho(_ text: String) -> Bool {
-        guard talking || Date().timeIntervalSince(quietSince) < Self.echoTail else { return false }
-        let heard = Self.words(text)
-        guard !heard.isEmpty else { return true }
-        return Double(heard.intersection(said).count) / Double(heard.count) >= Self.echoShare
-    }
-
-    nonisolated private static func words(_ text: String) -> Set<String> {
-        Set(text.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
+    /// Whether you said one of the stop words.
+    private static func saysStop(_ text: String) -> Bool {
+        let heard = text.lowercased().components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        return stopWords.contains { stop in
+            heard.indices.contains { start in Array(heard[start...].prefix(stop.count)) == stop }
+        }
     }
 
     private func report(_ message: String) {
@@ -184,26 +181,23 @@ final class Window: NSObject, NSApplicationDelegate, MTKViewDelegate {
     }
 
     private func handle(_ event: Listener.Event) {
-        trace("\(event) talking=\(talking) echo=\(isEcho("\(event)"))")
+        trace("\(event) talking=\(talking)")
         switch event {
         case .ready: show(.status("Listening"), for: 2)
         case .speaking:
             if !talking { show(.you("..."), for: nil) }
         case .partial(let text):
             if talking {
-                // It stops for you once your words are clear and louder than its own echo.
-                guard !isEcho(text), Self.words(text).count >= Self.interruptWords, listener?.louderThanEcho == true else { return }
+                // While it speaks, only a stop word gets through: the rest may be its own echo.
+                guard Self.saysStop(text) else { return }
                 interrupt()
-                youInterrupted = true
-            } else if !youInterrupted, isEcho(text) {
+                listener?.discard()
+                show(.status("Listening"), for: 3)
                 return
             }
             show(.you(text + " ..."), for: nil)
         case .heard(let text):
-            // While it speaks, only what stopped it is you: the rest is its own echo.
-            if talking { return }
-            if !youInterrupted, isEcho(text) { return }
-            youInterrupted = false
+            guard !talking else { return }
             show(.you(text), for: Self.subtitleSeconds)
             answer(text)
         case .failed(let reason): report("cannot listen: \(reason)")

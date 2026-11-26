@@ -63,3 +63,17 @@ test('what it is told to remember, it keeps on the machine until told to forget'
   assert.equal(forgot.status, 0, forgot.stderr)
   assert.doesNotMatch(readFileSync(memory, 'utf8'), /friday/i)
 }))
+
+test('remember and forget are done in code, whatever the model would say', () => withMemory((memory) => {
+  assert.equal(run('--memory', memory, '--ask', "Vibe One, don't forget that the logo needs work.").stdout.trim(), 'Noted.')
+  assert.match(readFileSync(memory, 'utf8'), /^- The logo needs work\.$/m)
+  assert.equal(run('--memory', memory, '--ask', 'Please forget about the logo.').stdout.trim(), 'Forgotten.')
+  assert.doesNotMatch(readFileSync(memory, 'utf8'), /logo/)
+  assert.equal(run('--memory', memory, '--ask', 'Forget the logo.').stdout.trim(), 'I had nothing on that.')
+}))
+
+test('report for duty is answered the same every time, without the model', () => withMemory((memory) => {
+  for (const said of ['Report for duty.', 'Devpal, report for duty!']) {
+    assert.equal(run('--memory', memory, '--ask', said).stdout.trim(), 'Sir, yes sir!')
+  }
+}))

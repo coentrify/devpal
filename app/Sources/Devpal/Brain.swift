@@ -12,7 +12,7 @@ final class Brain: @unchecked Sendable {
     static let turnsKept = 20
     static let startTimeout: TimeInterval = 180
     /// A spoken answer never runs longer than this, whatever the tone asks.
-    static let maxTokens = 120
+    static let maxTokens = 60
 
     private let model: URL
     private let tone: String
@@ -122,6 +122,7 @@ final class Brain: @unchecked Sendable {
         var body: [String: Any] = [
             "messages": [["role": "system", "content": instructions()]] + messages,
             "stream": true, "temperature": tools ? Self.toolTemperature : 0.7, "max_tokens": Self.maxTokens,
+            "repeat_penalty": Self.repeatPenalty,
         ]
         if tools { body["tools"] = Self.tools }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -176,8 +177,15 @@ final class Brain: @unchecked Sendable {
         Parakeet. You keep a memory on this machine, and you remember the last few exchanges of this \
         conversation. You stop talking when the developer starts. To learn anything about the projects on this \
         machine, their files, docs, wikis or progress, call ask_machine: Claude Code looks it up for you, \
-        read-only, which takes a little while. What you cannot do yet: change anything in the projects, talk to \
+        read-only, which takes a little while. You know nothing about the projects beyond what you \
+        remember: every question about what a project is, holds or how it is going needs ask_machine, and you \
+        never guess or make anything up about them. Call it at once, without writing anything first: never \
+        offer to check, never say you could or will check. When you cannot tell \
+        what the developer means, ask one short question instead. When looking it up fails, say why in a few words. What you cannot do yet: change anything in the projects, talk to \
         the agents working on them, or browse the web.
+
+        How you talk: say only what answers the developer, in one short sentence, and stop. Never repeat \
+        yourself, within an answer or from an earlier one.
         """
 
     /// Said while Claude Code looks something up.
@@ -195,6 +203,8 @@ final class Brain: @unchecked Sendable {
     static let toolRounds = 2
     /// Lower while tools are on offer, so a request to remember is acted on, not only answered.
     static let toolTemperature = 0.3
+    /// Discourages saying the same words again.
+    static let repeatPenalty = 1.15
 
     static var tools: [[String: Any]] { [
         ["type": "function", "function": [

@@ -21,7 +21,13 @@ if let text = options.say {
 }
 
 if let text = options.ask {
-    let brain = Brain(tone: (try? Persona(folder: options.layers.persona).tone) ?? "", memory: Memory(file: options.memory), machine: Machine(projects: options.projects))
+    let persona = try? Persona(folder: options.layers.persona)
+    let memory = Memory(file: options.memory)
+    if let fixed = persona?.fixedReply(to: text) ?? Commands(memory: memory).run(text) {
+        print(fixed)
+        exit(0)
+    }
+    let brain = Brain(tone: persona?.tone ?? "", memory: memory, machine: Machine(projects: options.projects))
     do {
         try await brain.start()
         for try await piece in brain.reply(to: text) { print(piece, terminator: "") }

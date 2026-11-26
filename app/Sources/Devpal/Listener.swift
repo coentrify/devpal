@@ -24,16 +24,12 @@ final class Listener: @unchecked Sendable {
     static let partialEvery: TimeInterval = 0.2
 
     private let engine: AVAudioEngine
-    private let levels = Levels()
+    private let control = Control()
 
-    /// Set while the companion speaks, so the listener learns how loud its own echo is.
-    var companionSpeaking: Bool {
-        get { levels.companionSpeaking }
-        set { levels.companionSpeaking = newValue }
+    /// Drops the sentence heard so far, so listening starts fresh, such as after the companion spoke.
+    func discard() {
+        control.requestDiscard()
     }
-
-    /// Whether the last moment of sound is clearly louder than the companion's own echo: a person talking.
-    var louderThanEcho: Bool { levels.louderThanEcho }
     private let chunks: AsyncStream<[Float]>
     private let feed: AsyncStream<[Float]>.Continuation
     private let onEvent: @Sendable (Event) -> Void
@@ -47,11 +43,11 @@ final class Listener: @unchecked Sendable {
     }
 
     func start() {
-        worker = Task.detached { [chunks, onEvent, levels] in
+        worker = Task.detached { [chunks, onEvent, control] in
             do {
                 let pipeline = try await Pipeline.load()
                 onEvent(.ready)
-                try await pipeline.run(chunks, levels: levels, onEvent: onEvent)
+                try await pipeline.run(chunks, control: control, onEvent: onEvent)
             } catch {
                 onEvent(.failed("\(error)"))
             }
@@ -75,7 +71,7 @@ final class Listener: @unchecked Sendable {
         }
         feed.finish()
         let heard = Heard()
-        try await pipeline.run(chunks, levels: Levels()) { event in
+        try await pipeline.run(chunks, control: Control()) { event in
             switch event {
             case .heard(let text): heard.append(text)
             case .partial(let text): FileHandle.standardError.write(Data("partial: \(text)\n".utf8))
@@ -147,7 +143,7 @@ private struct Pipeline {
         return Pipeline(vad: vad, asr: asr, boosting: boosting)
     }
 
-    func run(_ chunks: AsyncStream<[Float]>, levels: Levels, onEvent: @Sendable (Listener.Event) -> Void) async throws {
+    func run(_ chunks: AsyncStream<[Float]>, control: Control, onEvent: @Sendable (Listener.Event) -> Void) async throws {
         let config = VadSegmentationConfig(minSilenceDuration: Listener.silence)
         let preRollSamples = Int(Listener.preRoll * Listener.sampleRate)
         let partialSamples = Int(Listener.partialEvery * Listener.sampleRate)
@@ -162,7 +158,11 @@ private struct Pipeline {
             while pending.count >= VadManager.chunkSize {
                 let chunk = Array(pending.prefix(VadManager.chunkSize))
                 pending.removeFirst(VadManager.chunkSize)
-                levels.add(chunk)
+                if control.takeDiscard() {
+                    state = await vad.makeStreamState()
+                    sentence = nil
+                    recent = []
+                }
                 let result = try await vad.processStreamingChunk(chunk, state: state, config: config)
                 state = result.state
 
@@ -220,32 +220,19 @@ private struct Pipeline {
     }
 }
 
-/// How loud the microphone is, and how loud the companion's own echo is while it speaks.
-final class Levels: @unchecked Sendable {
-    /// A person talking is at least this many times louder than the echo.
-    static let voiceOverEcho: Float = 2.5
-    /// And never quieter than this, whatever the echo.
-    static let quietestVoice: Float = 0.004
-
+/// Asks the listening loop to drop what it heard so far.
+final class Control: @unchecked Sendable {
     private let lock = NSLock()
-    private var speaking = false
-    private var echo: Float = 0
-    private var recent: [Float] = []
+    private var discard = false
 
-    var companionSpeaking: Bool {
-        get { lock.withLock { speaking } }
-        set { lock.withLock { speaking = newValue } }
+    func requestDiscard() {
+        lock.withLock { discard = true }
     }
 
-    var louderThanEcho: Bool {
-        lock.withLock { (recent.max() ?? 0) > max(echo * Self.voiceOverEcho, Self.quietestVoice) }
-    }
-
-    func add(_ chunk: [Float]) {
-        let rms = (chunk.reduce(0) { $0 + $1 * $1 } / Float(max(chunk.count, 1))).squareRoot()
+    func takeDiscard() -> Bool {
         lock.withLock {
-            recent = Array((recent + [rms]).suffix(2))
-            if speaking { echo = echo == 0 ? rms : 0.9 * echo + 0.1 * rms }
+            defer { discard = false }
+            return discard
         }
     }
 }
