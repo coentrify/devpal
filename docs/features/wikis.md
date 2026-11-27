@@ -14,7 +14,7 @@ The machine serves every project's wiki on the home network, each on a name of i
 - A wiki shows its pages as they are in the project's checkout.
 - A change to a page shows within seconds.
 - A project that gets a wiki, or a wiki cloned onto the machine, is served within a minute.
-- A wiki that fails to build keeps showing its last good pages.
+- A wiki that fails to build keeps showing its last good pages, and tries again a little later.
 
 ## Always On
 

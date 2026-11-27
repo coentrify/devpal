@@ -182,6 +182,9 @@ function build(wiki, out) {
   })
 }
 
+/// How long a failed build waits before each new try.
+const retries = [15_000, 60_000, 300_000]
+
 /// Rebuilds a wiki when its pages or its config change, a moment after the last change.
 function watch(wiki, rebuild) {
   let timer
@@ -242,16 +245,22 @@ async function serve(args) {
   const watchers = new Map()
   const queue = new Map()
   // One build per wiki at a time, and a change during a build builds once more after it.
-  const rebuild = (wiki) => {
-    const state = queue.get(wiki.name) ?? { running: false, again: false }
+  // A build fails when the project builds its own wiki at the same moment, in the same temp folder:
+  // a failed build tries again a little later, a few times.
+  const rebuild = (wiki, tries = 0) => {
+    const state = queue.get(wiki.name) ?? { running: false, again: false, retry: null }
     queue.set(wiki.name, state)
     if (state.running) return void (state.again = true)
+    clearTimeout(state.retry)
     state.running = true
-    build(wiki, out).then(() => {
+    build(wiki, out).then((built) => {
       state.running = false
       if (state.again) {
         state.again = false
         rebuild(wiki)
+      } else if (!built && tries < retries.length) {
+        log(`${wiki.name}: trying again in ${retries[tries] / 1000} s`)
+        state.retry = setTimeout(() => rebuild(wiki, tries + 1), retries[tries])
       }
     })
   }
